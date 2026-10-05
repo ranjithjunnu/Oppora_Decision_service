@@ -1,138 +1,93 @@
-# Standalone Laya decision-service demo
+# Laya decision service
 
-For a visual walkthrough, file responsibilities and examples to explain to your lead, see [ARCHITECTURE.md](ARCHITECTURE.md).
+Local PyTorch Laya inference and GTM workflow planning, organized for future
+Oppora.ai decision evaluation. The service returns choice predictions and
+workflow proposals. Model behavior, confidence calculations, thresholds,
+regexes, workflow templates and API response contracts are preserved.
 
-This project demonstrates local classification and GTM workflow planning. It
-returns structured JSON; it does not execute Oppora tools, generate emails,
-send messages, or modify CRM records.
+## Run the service
 
-The current implementation uses **PyTorch Laya**, not MLX. The lead's MLX-specific
-deliverable therefore remains a separate framework requirement to resolve.
-No hosted GPT, Claude or Jev API is called by this demo. Model weights must be
-available locally; the first setup may download them through Laya.
-
-## Setup and restart
-
-From PowerShell:
+From PowerShell in `E:\laya_decision_service`, using the existing environment:
 
 ```powershell
-cd E:\laya_decision_service
-python -m venv venv  # Only if the project environment does not already exist.
-.\venv\Scripts\python.exe -m pip install -r requirements.txt
 .\venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000/docs>. Use POST `/agent/plan` -> Try it out.
-After a code change, stop the existing server with Ctrl+C and run the command
-again. The normal launch command does not automatically reload changed files.
-After this update the Swagger title should show version `1.1.0`.
-
-Run the separate CLI demo or regression checks:
+The explicit application path also works:
 
 ```powershell
-.\venv\Scripts\python.exe demo_client.py
-.\venv\Scripts\python.exe -m unittest test_regressions -v
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-The regression checks use deliberately incorrect model predictions to verify
-the corrections independently of model accuracy. They do not run inference.
-The CLI demo uses the real local model and prints the complete responses.
+`python app.py` remains compatible. Restart after code changes; the normal
+command does not enable reload. Swagger: <http://127.0.0.1:8000/docs>, API 1.1.0.
+For a fresh environment, create `venv` and install `requirements.txt` first.
+The manual console adds HTTPX and python-dotenv dependencies. This uses PyTorch Laya, not MLX. Startup loads and
+warms up `typed-decisions`; failed warmup prevents startup. Initial provisioning
+may download model weights. Existing routes use local inference. The new manual evaluation route also calls the configured Groq model when a key is provided.
 
-## How it works
-
-```text
-User prompt
-  -> Laya choice predictions: intent, role, industry, geography
-  -> Simple explicit-request rules preserve recognised user constraints
-  -> Intent maps to a supported workflow blueprint
-  -> Blueprint actions map to configured demo tools
-  -> Pydantic validates the structured response
-```
-
-Laya scores finite choices. It does not generate the workflow JSON or reasoning
-text; Python builds those from rules, descriptions and templates. Tool selection
-is a fixed mapping, not a separate Laya comparison of all Oppora tools.
-
-Every supported intent has a blueprint, including enrichment and incoming-reply
-classification. A missing blueprint returns `unsupported` with no steps; it
-never silently becomes an outbound workflow. Company searches do not add people
-or outreach. People searches add email verification only when email/verification
-is requested. The outbound blueprint represents discovery and qualification;
-it does not include email writing or sending.
-
-An absent target is `none_specified`. This is different from an explicitly
-requested `global` location. Scope recognition uses a small keyword catalog;
-unsupported recognised targets and multiple categories require clarification.
-Arbitrary job titles, industries and locations are not comprehensively parsed.
-Full natural-language understanding, negation and mixed-operation planning remain
-limitations of this small demo.
-
-## Scores, sources and uncertainty
-
-Each decision has a source:
-
-| Source | Meaning of confidence |
+| Endpoint | Existing behavior |
 | --- | --- |
-| `model_probability` | Winning-choice probability from Laya, not verified accuracy. |
-| `model_score` | Another model-provided confidence score; not verified accuracy. |
-| `explicit_rule` | `null`: a deterministic text rule matched, not a model probability. |
-| `fixed_mapping` | `null`: the blueprint specifies the tool, not a learned tool-selection score. |
-| `unavailable` | `null`: the model returned no usable score. |
+| GET `/health` | Model and engine readiness |
+| POST `/decision` | Raw Laya choices, model scores and inference latency |
+| POST `/agent/plan` | GTM plan, sources, original predictions, status and clarification |
 
-`model_predictions` preserves the original Laya choices and scores before rules.
-Use it to evaluate the model separately from the combined planner. Rule fixes
-do not prove an improvement in Laya's underlying classification accuracy.
-
-When no explicit intent rule matches, a model probability below 0.5 (or a missing
-score) returns `needs_clarification` with no steps. This is a conservative demo
-guardrail, not a calibrated production threshold. A high score still does not
-guarantee a correct decision. Tune the threshold against labelled Oppora examples.
-
-Clients should check `status == "planned"` before using steps. Confidence fields
-are now nullable; display `N/A` for rules/mappings rather than formatting null as
-a percentage. The local checkpoint may emit calibration warnings. Do not describe
-the exposed probabilities as measured correctness.
-
-## Demo requests and expected behaviour
-
-Submit a request such as:
+Example body for `/agent/plan`:
 
 ```json
 {"prompt": "Find IT services companies in India"}
 ```
 
-| Prompt | Expected intent and plan |
-| --- | --- |
-| Find IT services companies in India | `account_discovery`; IT services, India; company finder only. |
-| Find VP of engineering in the USA | `contact_hunting`; engineering leaders, US; no invented industry; contact hunter only. |
-| Find SaaS founders in California and generate an outbound workflow. | `outbound_pipeline`; SaaS, founders, California; discover, find contacts, verify, qualify. |
-| Enrich existing company records with missing firmographics. | `enrichment_only`; enrich existing records; no invented target scope. |
-| Classify incoming sales replies and out-of-office responses. | `inbound_triage`; classify incoming messages only. |
-| Find companies | `account_discovery`; all target fields unspecified; company finder only. |
+Check `status == "planned"` before using steps. Scores are nullable and are not
+verified accuracy. Rules and fixed mappings have null confidence. Without an
+explicit intent rule, the existing 0.5 threshold governs clarification.
+`context` is accepted but unused. Tools are proposed, not executed; the scoring
+tool label does not compute a lead score.
 
-`sample_responses.json` contains real local-model responses captured during
-verification of this update. IDs, model scores and latency can change on a later
-run. No production accuracy or cost savings have been established.
+## Developer commands and compatibility
 
-## API and files
+```powershell
+.\venv\Scripts\python.exe -m scripts.demo_client
+.\venv\Scripts\python.exe -m scripts.choice_probe
+```
 
-- GET `/health`: readiness after successful model warmup. Failed warmup prevents startup.
-- POST `/decision`: raw Laya choice decisions without planner correction rules.
-- POST `/agent/plan`: combined planner, sources, raw predictions, status and ordered steps.
-- `taxonomy.py`: supported choices, scope keywords, demo tools and all six blueprints.
-- `gtm_agent.py`: explicit rules, clarification guardrail and plan construction.
-- `engine.py`: local Laya Router and score parsing.
-- `contracts.py`: Pydantic request/response schemas.
-- `app.py`: FastAPI server.
-- `demo_client.py`: six standalone demo requests.
-- `test_regressions.py`: checks for the observed failures and response semantics.
+The demo runs six requests directly through the planner. The probe prints one
+raw Router prediction. Both run real local inference; neither is an automated
+test. Existing `python demo_client.py` and `python test_choice.py` commands work
+through compatibility entry points. The latter retains import-time execution:
+importing it loads a model. Its name does not imply an automated test suite.
 
 
+Existing `engine`, `gtm_agent`, `contracts` and `taxonomy` imports remain
+available. New code should use the canonical packages in PROJECT_MAP.md.
+Engine/planner aliases share singleton state. `taxonomy` is now a package
+exporting the original catalog names. No deleted regression tests were restored;
+there is currently no automated regression suite in this working tree.
 
-## Performance
+## Data and documentation
 
-The pre-update local API check observed roughly 4.7–6.5 seconds per plan on this
-CPU environment. This is a small observation, not a P95 benchmark. The verification
-samples record updated per-request latency. Measure on the intended hardware and
-representative workloads before claiming speedups or savings. Self-hosting still
-has compute and operational costs.
+The four existing dataset JSON files are preserved byte-for-byte. Reference
+inputs live in `datasets/reference/`, and labelled fixtures in
+`datasets/benchmark/legacy/`. The service does not load them at runtime. No
+replacement datasets were generated. Dataset paths changed; external/manual
+readers should use the migration table in the dataset README.
+
+- [ARCHITECTURE.md](ARCHITECTURE.md): current flow, boundaries, limitations and planned layers.
+- [PROJECT_MAP.md](PROJECT_MAP.md): tree, file migration, dependencies and status.
+- [BENCHMARK.md](BENCHMARK.md): future design only; no runner exists.
+- [datasets/README.md](datasets/README.md): classification and provenance.
+- [sample_responses.json](sample_responses.json): unchanged historical responses, not a fresh benchmark.
+- [Historical diagram](docs/architecture-legacy.png): preserved image; current source locations are documented in the project map.
+
+## Manual evaluation console
+
+The React console compares one query using the existing Laya engine and a
+configurable Groq LLM. Both receive the same decision task and input. The default
+task uses the six existing GTM intent labels without planner corrections.
+
+See [Manual evaluation guide](docs/MANUAL_EVALUATION.md) for setup, API contracts,
+file responsibilities, limitations and the next phase.
+
+New routes: `GET /evaluate/config` and `POST /evaluate`.
+Evidence verification, calibration, deterministic scoring, benchmarking,
+persistent storage and deployment remain future work.

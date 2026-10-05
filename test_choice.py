@@ -1,29 +1,6 @@
-from laya import Router
+"""Legacy manual-probe entry point, not an automated test.
 
-router = Router()
-
-state = """
-User wants to find SaaS founders in California
-and create an outbound workflow.
+Importing/running this still loads Laya and prints a prediction, as before.
+Prefer python -m scripts.choice_probe for manual use.
 """
-
-questions = {
-    "next_action": {
-        "type": "choice",
-        "instructions": "What should the agent do first?",
-        "criteria": {
-            "search_leads": "Search for people matching the requested target.",
-            "search_companies": "Search for companies matching the request.",
-            "generate_email": "Generate an email for the user.",
-            "create_campaign": "Create an outbound campaign."
-        }
-    }
-}
-
-result = router.predict(
-    state,
-    questions,
-    model="typed-decisions"
-)
-
-print(result)
+from scripts.choice_probe import *  # Preserve the original import-time manual probe.

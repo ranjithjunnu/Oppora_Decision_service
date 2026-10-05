@@ -2,18 +2,44 @@
 venv/
 .venv/
 env/
+ENV/
 
-# Python compiled cache files
+# Python compiled cache & test artifacts
 __pycache__/
 *.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Secrets and environment variables
 .env
+.env.*
+!.env.example
+*.env
+*.env.local
+
+# Frontend dependencies, caches and builds
+node_modules/
+**/node_modules/
+frontend/dist/
+dist/
+build/
+*.tsbuildinfo
+.vite/
 
 # Editor / IDE configuration files
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # OS temporary files
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

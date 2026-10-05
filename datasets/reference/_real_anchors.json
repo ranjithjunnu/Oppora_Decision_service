@@ -1,0 +1,149 @@
+{
+  "_meta": {
+    "purpose": "Real observations harvested from Oppora's live MCP API on 2026-08-05, used by generate.py as realism anchors. NOT a test set itself.",
+    "why_this_exists": "Synthetic lead data is uniformly clean: every field populated, title matches headline, geography matches the filter. Real Oppora rows are not. Every pattern below was observed in an actual API response, and each one is a failure mode a model can trip on that a hand-written case would never think to encode.",
+    "pii_policy": "PEOPLE are anonymised — real names, LinkedIn URLs and profile photos are never stored here or in any generated case. Only the STRUCTURAL pattern of each observation is kept. COMPANY records (name, domain, description, industry, size) are retained verbatim: they are public business records rather than personal data, and the real description text is exactly what makes classify_company_industry a meaningful test.",
+    "harvest_cost": "~45 Oppora data credits across 6 discover_* calls. 24,863 credits remained at time of writing."
+  },
+
+  "observed_messiness_patterns": [
+    {
+      "id": "title_reality_mismatch",
+      "observed": "title='VP of Sales', management_level='Vice President', but headline='photographer' and summary describes a self-employed photography studio. company_name='Self-employed'.",
+      "why_it_matters": "The strongest signal in the row (title) contradicts the second-strongest (headline). A scorer that reads only `title` keeps this lead; one that reads the whole record drops it. Synthetic data never disagrees with itself.",
+      "affects": ["score_leads_batch", "top_lead_generate_with_quality_check"]
+    },
+    {
+      "id": "compound_cross_department_title",
+      "observed": "title='Director of Sales, Engineering & Quality Assurance; Specialty Refrigeration/Blowers/Heat Exchangers', department='Engineering'.",
+      "why_it_matters": "Title leads with 'Director of Sales' but the department field says Engineering. A department filter and a title filter disagree on the same person.",
+      "affects": ["score_leads_batch"]
+    },
+    {
+      "id": "filter_returned_nonmatching_row",
+      "observed": "Query asked departments=['Marketing'], management_levels=['Vice President']. Oppora returned a row with department='Sales', management_level='Owner / Partner'.",
+      "why_it_matters": "Oppora's own filtering is fuzzy, not strict. Production therefore hands the scoring prompt rows that do NOT satisfy the filters — which is precisely what score_leads_batch exists to catch. A dataset where every supplied lead already matches the filter tests nothing.",
+      "affects": ["score_leads_batch"]
+    },
+    {
+      "id": "lowercase_title",
+      "observed": "title='vp of marketing' (all lowercase).",
+      "why_it_matters": "Casing is inconsistent in real records. A model doing literal string comparison against 'VP of Marketing' misses it.",
+      "affects": ["score_leads_batch", "generate_ai_template_response"]
+    },
+    {
+      "id": "abbreviated_or_initial_surname",
+      "observed": "full_name='Marty S.' — last_name is a single initial with a period.",
+      "why_it_matters": "Breaks email-pattern derivation and merge-tag rendering. {last_name} becomes 'S.'",
+      "affects": ["extract_email_pattern", "generate_lead_email", "generate_ai_template_response"]
+    },
+    {
+      "id": "multi_company_name_field",
+      "observed": "company_name='Special Engineering Service, Sunbelt Equipment Company, Four Seasons Hotels & Resorts, Omni Hotels' — four companies in one field.",
+      "why_it_matters": "A {company} merge tag renders as a comma-separated list. Personalised copy referencing 'your work at <all four>' is nonsense that ships to a prospect.",
+      "affects": ["generate_ai_template_response", "generate_email_sequence"]
+    },
+    {
+      "id": "null_enrichment_on_large_company",
+      "observed": "company_name='IBM' with company_domain=null, company_industry=null, company_employee_count=''.",
+      "why_it_matters": "Enrichment gaps are not limited to obscure companies. Graceful degradation must hold even when the company is a household name.",
+      "affects": ["classify_company_industry", "generate_lead_email"]
+    },
+    {
+      "id": "aggregator_domain_not_own",
+      "observed": "company='The Sandwich Box', domain='zomato.com' — a delivery-aggregator domain, not the business's own.",
+      "why_it_matters": "Guessing an address at @zomato.com for a Sandwich Box employee produces a deliverable-looking address at the wrong company. A silent, expensive failure.",
+      "affects": ["extract_email_pattern", "generate_lead_email"]
+    },
+    {
+      "id": "templated_boilerplate_description",
+      "observed": "description='Vegetalle is a restaurants company based out of R Padre Vieira, 1121, Campinas, Sao Paulo, Brazil.' — auto-generated, no real product information.",
+      "why_it_matters": "Carries the industry weakly and the size not at all. The real-world version of the sparse-input probe.",
+      "affects": ["classify_company_industry"]
+    },
+    {
+      "id": "geography_leak",
+      "observed": "location='Wellsville, New York' and 'Fulton, New York' returned for a New York search — both are upstate, 300+ miles from New York City. Separately, an Engineering search returned a row located in the United Arab Emirates.",
+      "why_it_matters": "'New York' the state is not 'New York' the city. This is subtler than the existing London-vs-New-York trap and is the single most-ignored filter dimension.",
+      "affects": ["score_leads_batch"]
+    },
+    {
+      "id": "country_only_location",
+      "observed": "location='United States' with location_details.city='' and state=''.",
+      "why_it_matters": "A city-level filter cannot be evaluated against this row at all. Keep, drop, or ambiguous is a genuine judgement call.",
+      "affects": ["score_leads_batch"]
+    },
+    {
+      "id": "instruction_like_entity_name",
+      "observed": "company name='not-uberEats'.",
+      "why_it_matters": "An entity name that reads like a negation or an instruction. Mild natural prompt-injection surface in generated copy.",
+      "affects": ["generate_ai_template_response", "generate_email_sequence"]
+    }
+  ],
+
+  "real_companies": [
+    {"name": "Minisoft", "domain": "minisoft.com", "industry": "Software Development", "size": "51-200", "location": "Snohomish, Washington, United States",
+     "description": "Minisoft is a global leader in developing and implementing best-in-class form/label generation, warehouse automation and multi-carrier shipping execution solutions. Our software solutions are used by many of the world's great brands to ship smarter and sell more. Since 1983, Minisoft has been dedicated to providing reliable and innovative software technologies to its over 5,000 customers.",
+     "richness": "rich"},
+    {"name": "Graduway from Gravyty", "domain": "gravyty.com", "industry": "Software Development", "size": "51-200", "location": "Seattle, Washington, United States",
+     "description": "Graduway from Gravyty helps you engage more alumni, spark career connections, and grow giving through a fully branded, always-on digital community.",
+     "richness": "thin"},
+    {"name": "TAC Security", "domain": "tacsecurity.com", "industry": "Software Development", "size": "51-200", "location": "San Francisco, California, United States",
+     "description": "TAC Security, a leading publicly listed global cybersecurity company specializing in vulnerability management, today serves 6,000+ clients across 100 countries and has emerged as the world's 5th largest vulnerability management company. Its flagship product ESOF excels in cyber scoring, cyber risk quantification, and leveraging advanced AI for vulnerability assessment and penetration testing.",
+     "richness": "rich",
+     "_note": "Cross-sector ambiguity: cybersecurity could plausibly be classified as 'Computer and Network Security' or 'Software Development'. Oppora's authoritative label is Software Development."},
+    {"name": "Goodera", "domain": "goodera.com", "industry": "Software Development", "size": "51-200", "location": "San Mateo, California, United States",
+     "description": "Goodera executes hosted volunteering experiences that are accessible, engaging, and impactful for the world's leading organizations. We power on-demand volunteering experiences hosted by our ambassadors for your employees across 1000+ cities in 100+ countries worldwide.",
+     "richness": "rich",
+     "_note": "Misleading surface: description reads like a non-profit or events company, but the authoritative industry is Software Development."},
+    {"name": "Talview", "domain": "talview.com", "industry": "Software Development", "size": "51-200", "location": "San Mateo, California, United States",
+     "description": "Talview is the trust infrastructure for high-stakes decisions in the AI era. Talview delivers defense-in-depth trust controls combining identity assurance, environment integrity, behavior verification, and AI agents with human escalation. Across 120+ countries and 20 million+ candidates assessed.",
+     "richness": "rich"},
+    {"name": "Apollo Hospitals", "domain": "apollohospitals.com", "industry": "Hospitals and Health Care", "size": "10001+", "location": "Chennai, Tamil Nadu, India",
+     "description": "The Apollo Hospitals Group pioneered corporate healthcare in India. Today Apollo is one of the world's largest integrated healthcare platforms with over 10,000 beds across 73 hospitals, over 6000 pharmacies and over 2500 clinics and diagnostic centers as well as 500+ telemedicine centers.",
+     "richness": "rich"},
+    {"name": "Aster DM Healthcare", "domain": "asterdmhealthcare.com", "industry": "Hospitals and Health Care", "size": "10001+", "location": "United Arab Emirates",
+     "description": "From a single medical centre to a performance-driven healthcare enterprise spread across more than 400+ medical establishments, including 15 hospitals, 120 clinics and 307 pharmacies in GCC and growing. The Aster DM network now encompasses more than 19,657 employees with JCI accredited clinics and diagnostic centres.",
+     "richness": "rich",
+     "_note": "Location is country-only, no city. Employee count stated in the text (19,657) agrees with the 10001+ bucket."},
+    {"name": "Fortis Healthcare", "domain": "fortishealthcare.com", "industry": "Hospitals and Health Care", "size": "10001+", "location": "Gurugram, Haryana, India",
+     "description": "Fortis Healthcare Group is a leading integrated healthcare provider operating across the Asia Pacific region. With more than 20,000 employees and growing, Fortis Healthcare is currently present in Australia, Canada, Hong Kong SAR, India, Mauritius, New Zealand, Singapore, Sri Lanka, UAE, and Vietnam.",
+     "richness": "rich"},
+    {"name": "The Sandwich Box", "domain": "zomato.com", "industry": "Restaurants", "size": "2-10", "location": "Jabalpur, Madhya Pradesh, India",
+     "description": "The Sandwich Box is a cloud kitchen delivering Lip-Smacking, Handcrafted and Authentic sandwiches!",
+     "richness": "thin",
+     "_note": "AGGREGATOR DOMAIN TRAP: domain is zomato.com, a food-delivery marketplace, not the business's own domain."},
+    {"name": "Vegetalle", "domain": "vegetalle.com.br", "industry": "Restaurants", "size": "2-10", "location": "Campinas, Sao Paulo, Brazil",
+     "description": "Vegetalle is a restaurants company based out of R Padre Vieira, 1121, Campinas, Sao Paulo, Brazil.",
+     "richness": "boilerplate",
+     "_note": "Auto-generated description carrying no product information. Multi-part ccTLD (.com.br) also stresses domain parsing."},
+    {"name": "not-uberEats", "domain": "not-ubereats.co.za", "industry": "Restaurants", "size": "2-10", "location": "Cape Town, Western Cape, South Africa",
+     "description": "Unfortunately, UberEats and many other companies are charging restaurants 30% for food delivery. By ordering from your local restaurant you're putting more money into the local economy and helping restaurants during this critical time.",
+     "richness": "rich",
+     "_note": "Entity name reads like a negation. Multi-part ccTLD (.co.za). Description is advocacy prose, not a product description."}
+  ],
+
+  "real_lead_shapes": [
+    {"shape_id": "exact_match_clean", "title": "Director of Sales", "department": "Sales", "management_level": "Director", "location": "Fulton, New York, United States", "company_industry": "Food and Beverage Manufacturing", "company_size": "501-1000", "sparse": false, "note": "Clean, fully populated. The baseline shape."},
+    {"shape_id": "vp_global_scope", "title": "VP of Global Sales", "department": "Sales", "management_level": "Vice President", "location": "Smithtown, New York, United States", "company_industry": "International Trade and Development", "company_size": "51-200", "sparse": false},
+    {"shape_id": "title_headline_conflict", "title": "VP of Sales", "department": "Sales", "management_level": "Vice President", "location": "Garrison, New York, United States", "company_industry": null, "company_size": "", "sparse": true, "headline_conflicts": "photographer", "company_name_literal": "Self-employed", "note": "Title says senior sales; headline and summary say self-employed photographer."},
+    {"shape_id": "headline_conflict_secretary", "title": "Director of Sales Marketing", "department": "Sales", "management_level": "Director", "location": "New York, New York, United States", "company_industry": null, "company_size": "", "sparse": true, "headline_conflicts": "secretary"},
+    {"shape_id": "adjacent_title_qualifier", "title": "Director of PBE Sales and Development", "department": "Sales", "management_level": "Director", "location": "Wellsville, New York, United States", "company_industry": null, "company_size": "", "sparse": true, "note": "Adjacent-not-exact title, and upstate NY rather than NYC."},
+    {"shape_id": "compound_cross_department", "title": "Director of Sales, Engineering & Quality Assurance; Specialty Refrigeration/Blowers/Heat Exchangers", "department": "Engineering", "management_level": "Director", "location": "Langhorne, Pennsylvania, United States", "company_industry": "Appliances, Electrical, and Electronics Manufacturing", "company_size": "51-200", "sparse": false, "note": "Title leads with Sales, department field says Engineering."},
+    {"shape_id": "owner_partner_not_vp", "title": "Co-owner & VP of Sales & Marketing", "department": "Sales", "management_level": "Owner / Partner", "location": "Reno, Nevada, United States", "company_industry": "Food and Beverage Services", "company_size": "51-200", "sparse": false, "note": "Returned by a Marketing/Vice-President query despite being Sales/Owner-Partner. Demonstrates Oppora's fuzzy filtering."},
+    {"shape_id": "lowercase_title", "title": "vp of marketing", "department": "Marketing", "management_level": "Vice President", "location": "Milwaukee, Wisconsin, United States", "company_industry": "Industrial Machinery Manufacturing", "company_size": "201-500", "sparse": false, "note": "All-lowercase title."},
+    {"shape_id": "country_only_location", "title": "VP of Marketing", "department": "Marketing", "management_level": "Vice President", "location": "United States", "company_industry": "Mechanical Or Industrial Engineering", "company_size": "51-200", "sparse": true, "surname_is_initial": true, "note": "No city or state. Surname is a single initial."},
+    {"shape_id": "null_enrichment_big_company", "title": "Director of Quality Assurance & Test Engineering", "department": "Engineering", "management_level": "Director", "location": "Carlisle, Massachusetts, United States", "company_industry": null, "company_size": "", "sparse": true, "company_name_literal": "IBM", "note": "Household-name employer, zero enrichment."},
+    {"shape_id": "multi_company_field", "title": "Contracted Director of Engineering / Project Engineer", "department": "Engineering", "management_level": "Director", "location": "United States", "company_industry": null, "company_size": "", "sparse": true, "company_is_list": true, "note": "company_name holds four comma-separated employers."},
+    {"shape_id": "offshore_geography_leak", "title": "Assistant Director Of Engineering (Resident Engineer)", "department": "Engineering", "management_level": "Director", "location": "United Arab Emirates", "company_industry": "Hospitality", "company_size": "10001+", "sparse": true, "note": "Returned by an otherwise US-centric query. Also an 'Assistant Director' qualifier."}
+  ],
+
+  "verified_taxonomies": {
+    "_source": "Oppora live MCP endpoints, 2026-08-05",
+    "management_levels": ["C-Level", "Director", "Entry", "Entry Level Manager", "Experienced  Manager", "In Training", "Owner / Partner", "Senior", "Strategic", "Vice President"],
+    "departments": ["Arts and Design", "Consulting", "Customer Success and Support", "Engineering", "Finance", "Human Resources", "Legal", "Marketing", "Operations", "Product Management", "Research", "Sales"],
+    "employee_size_buckets": ["2-10", "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+"],
+    "industry_count": 433,
+    "industries_sample": ["Software Development", "Hospitals and Health Care", "Banking", "Construction", "Restaurants", "IT Services and IT Consulting", "Business Consulting and Services", "Financial Services", "Real Estate", "Staffing and Recruiting", "Marketing Services", "Higher Education", "Insurance", "Retail", "Manufacturing", "Telecommunications", "Law Practice", "Accounting", "Advertising Services", "Food and Beverage Manufacturing", "Industrial Machinery Manufacturing", "Appliances, Electrical, and Electronics Manufacturing", "Hospitality", "International Trade and Development", "Computer and Network Security", "Biotechnology Research", "Pharmaceutical Manufacturing", "Medical Practices", "Civil Engineering", "Environmental Services"]
+  }
+}
