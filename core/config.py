@@ -80,3 +80,16 @@ def load_evaluation_settings() -> EvaluationSettings:
         timeout_seconds=timeout, max_output_tokens=int(token_limit), input_cost_per_million=input_rate,
         output_cost_per_million=output_rate, task=value('EVALUATION_TASK', 'gtm_intent'), issues=tuple(issues),
     )
+
+
+def is_decision_lab_enabled() -> bool:
+    env = os.environ.get('ENABLE_DECISION_LAB')
+    if env is not None:
+        return env.strip().lower() not in {'false', '0', 'no'}
+    file_values = dotenv_values(ROOT / '.env', interpolate=False) if (ROOT / '.env').exists() else {}
+    file_val = file_values.get('ENABLE_DECISION_LAB')
+    if file_val is not None:
+        return str(file_val).strip().lower() not in {'false', '0', 'no'}
+    return True
+
+

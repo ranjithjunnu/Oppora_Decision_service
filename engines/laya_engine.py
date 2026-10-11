@@ -10,12 +10,15 @@ Provides a singleton wrapper around Laya's Router with:
 
 import time
 import logging
+import math
+from threading import Lock
 from typing import Dict, Any, Tuple, Optional, Callable
 from laya import Router
 
 from models.decision import ChoiceAnswer, QuestionSpec
 
 logger = logging.getLogger("laya_decision_service.engine")
+_inference_lock = Lock()
 
 
 class DecisionEngine:
@@ -69,6 +72,26 @@ class DecisionEngine:
         model: Optional[str] = None,
         *,
         capture_raw: Optional[Callable[[Any], None]] = None,
+        capture_queue: Optional[Callable[[float], None]] = None,
+    ) -> Tuple[Dict[str, ChoiceAnswer], float]:
+        """Serialize local inference for every caller with a bounded queue wait."""
+        queued = time.perf_counter()
+        if not _inference_lock.acquire(timeout=1):
+            raise TimeoutError('The local decision model is busy. Retry shortly.')
+        try:
+            if capture_queue is not None:
+                capture_queue(round((time.perf_counter() - queued) * 1000, 2))
+            return self._decide_unlocked(state, questions, model, capture_raw=capture_raw)
+        finally:
+            _inference_lock.release()
+
+    def _decide_unlocked(
+        self,
+        state: str,
+        questions: Dict[str, QuestionSpec],
+        model: Optional[str] = None,
+        *,
+        capture_raw: Optional[Callable[[Any], None]] = None,
     ) -> Tuple[Dict[str, ChoiceAnswer], float]:
         """
         Executes a batch of decision questions against a given state.
@@ -98,11 +121,23 @@ class DecisionEngine:
 
         parsed_answers: Dict[str, ChoiceAnswer] = {}
         answers_dict = raw_result.get("answers", {})
+        if not isinstance(answers_dict, dict) or set(answers_dict) != set(questions):
+            raise ValueError('Model answer IDs do not match the requested questions.')
 
         for qid, answer_data in answers_dict.items():
             choice = answer_data.get("choice", "")
+            allowed = questions[qid].criteria
+            if choice not in allowed:
+                raise ValueError('Model choice is outside the supplied options.')
             raw_probs = answer_data.get("probabilities", {})
-            probabilities = {k: round(float(v), 4) for k, v in raw_probs.items()}
+            if not isinstance(raw_probs, dict):
+                raise ValueError('Invalid model probability values.')
+            probabilities = {}
+            for key, value in raw_probs.items():
+                numeric = float(value)
+                if key not in allowed or isinstance(value, bool) or not math.isfinite(numeric) or not 0 <= numeric <= 1:
+                    raise ValueError('Invalid model probability values.')
+                probabilities[key] = round(numeric, 4)
 
             # Preserve scores without describing them as calibrated accuracy.
             winner_prob = probabilities.get(choice)

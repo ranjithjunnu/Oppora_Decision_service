@@ -2,7 +2,6 @@
 import math
 import logging
 import json
-from threading import Lock
 import time
 
 from starlette.concurrency import run_in_threadpool
@@ -12,7 +11,6 @@ from models.evaluation import EvaluationError, EvaluationResult
 from .base import Evaluator, PreparedCase
 
 
-_manual_inference_lock = Lock()
 logger = logging.getLogger(__name__)
 
 
@@ -43,10 +41,11 @@ class LayaEvaluator(Evaluator):
                 error=EvaluationError(code=code, message=message, retryable=retryable),
             )
 
-        if not _manual_inference_lock.acquire(timeout=1):
-            return result_error('busy', 'The local model is already evaluating a manual request.', True)
-        queue_ms = round((time.perf_counter()-started)*1000, 2)
-        started = time.perf_counter()
+        def capture_queue(value):
+            nonlocal queue_ms, started
+            queue_ms = value
+            started = time.perf_counter()
+
         try:
             engine = get_engine()
             model = engine.default_model
@@ -54,6 +53,7 @@ class LayaEvaluator(Evaluator):
                 prepared.state,
                 {'decision': QuestionSpec(type='choice', instructions=prepared.instructions, criteria=prepared.choices)},
                 capture_raw=capture,
+                capture_queue=capture_queue,
             )
             if set(answers) != {'decision'}:
                 return result_error('invalid_model_output', 'Laya did not return the requested decision question.')
@@ -77,9 +77,10 @@ class LayaEvaluator(Evaluator):
                 input_tokens=token_count('input_tokens'), output_tokens=token_count('output_tokens'),
                 raw_model_output=raw, input_fingerprint=prepared.fingerprint,
             )
+        except TimeoutError:
+            queue_ms = round((time.perf_counter() - started) * 1000, 2)
+            return result_error('busy', 'The local model is busy. Retry shortly.', True)
         except Exception:
             logger.exception('Local manual evaluation failed for request %s', prepared.case.request_id)
             # Do not expose filesystem paths or internal exception text to clients.
             return result_error('local_inference_error', 'Local Laya inference failed. Check the backend and model availability.', True)
-        finally:
-            _manual_inference_lock.release()

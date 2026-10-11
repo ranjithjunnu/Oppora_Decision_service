@@ -1,24 +1,15 @@
-"""Existing health HTTP endpoint."""
-import logging
-from fastapi import APIRouter, HTTPException, status
+"""Service liveness and LLM configuration without making a provider request."""
+from fastapi import APIRouter
+from core.config import load_evaluation_settings
 from models.health import HealthResponse
-from engines.laya_engine import get_engine
 
-logger = logging.getLogger("laya_decision_service.app")
 router = APIRouter()
 
-@router.get(
-    "/health",
-    response_model=HealthResponse,
-    tags=["System"],
-    summary="Health check and engine readiness"
-)
+
+@router.get('/health', response_model=HealthResponse, tags=['System'])
 async def health_check() -> HealthResponse:
-    """Returns the operational status of the Laya Decision Engine."""
-    engine = get_engine()
+    settings = load_evaluation_settings()
     return HealthResponse(
-        status="ok",
-        model=engine.default_model,
-        engine_ready=engine.ready,
-        standalone=True,
+        status='ok', model=settings.model, provider=settings.provider,
+        llm_configured=not settings.issues, configuration_issues=list(settings.issues),
     )

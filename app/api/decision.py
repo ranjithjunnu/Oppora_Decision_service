@@ -13,7 +13,7 @@ router = APIRouter()
     tags=["Decision Core"],
     summary="Execute low-level multi-choice decision questions"
 )
-async def make_decision(request: DecisionRequest) -> DecisionResponse:
+def make_decision(request: DecisionRequest) -> DecisionResponse:
     """
     Evaluates one or more decision questions against a given context state.
     """
@@ -29,9 +29,11 @@ async def make_decision(request: DecisionRequest) -> DecisionResponse:
             answers=answers,
             latency_ms=latency_ms,
         )
+    except TimeoutError as e:
+        raise HTTPException(status_code=503, detail='The local model is busy. Retry shortly.') from e
     except Exception as e:
         logger.error(f"Error processing /decision: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Decision execution failed: {str(e)}"
+            detail="Decision execution failed. Check the backend logs."
         )

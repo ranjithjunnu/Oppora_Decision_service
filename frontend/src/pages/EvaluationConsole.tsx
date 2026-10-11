@@ -7,6 +7,8 @@ import { ComparisonPanel } from '../components/ComparisonPanel';
 import { QueryHistory } from '../components/QueryHistory';
 import { RawOutputViewer } from '../components/RawOutputViewer';
 import { Icon } from '../components/Icon';
+import { getScoringConfig } from '../services/scoringApi';
+import '../scoring.css';
 
 export function EvaluationConsole() {
   const [query, setQuery] = useState('');
@@ -29,7 +31,13 @@ export function EvaluationConsole() {
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 10_000);
     setConfigError(null);
-    getConfig(controller.signal).then(value => { if (active) setConfig(value); }).catch(() => {
+    getScoringConfig(controller.signal).then(settings => {
+      if (!settings.decision_lab_enabled) {
+        if (active) setConfigError('Decision Lab is kept here for model comparisons. Its backend is currently disabled. Start the backend with ENABLE_DECISION_LAB=true to use it.');
+        return null;
+      }
+      return getConfig(controller.signal);
+    }).then(value => { if (active) setConfig(value); }).catch(() => {
       if (active) setConfigError(timedOut ? 'The backend is taking too long to respond. It may still be loading the model.' : 'Cannot reach the backend. Start the Laya service, then reconnect.');
     }).finally(() => clearTimeout(timer));
     return () => { active = false; clearTimeout(timer); controller.abort(); };
@@ -82,6 +90,7 @@ export function EvaluationConsole() {
     <aside className="sidebar">
       <a href="#main" className="brand" aria-label="Oppora Decision Lab"><span className="brand-mark"><i /><i /><i /></span><span>oppora<span className="brand-dot">.</span></span></a>
       <div className="workspace-label">AI WORKSPACE</div>
+      <a className="workspace-link" href="#lead-scoring">Find leads</a>
       <div className="nav-active"><Icon name="compare" /><span>Decision Lab</span><span className="nav-badge">MANUAL</span></div>
       <button className="new-query" type="button" onClick={newQuery} disabled={busy}><Icon name="plus" size={17} />New query</button>
       <QueryHistory entries={history} selected={response?.request_id || null} onSelect={selectHistory} onClear={() => setHistory([])} busy={busy} />

@@ -1,9 +1,13 @@
-"""Service readiness response contract."""
+"""Liveness is separate from provider availability or model quality."""
 from pydantic import BaseModel, Field
 
+
 class HealthResponse(BaseModel):
-    """Health check status of the decision service."""
-    status: str = Field(default="ok", description="Service health status.")
-    model: str = Field(..., description="Active Laya decision model.")
-    engine_ready: bool = Field(..., description="Whether the model weights are loaded and ready.")
-    standalone: bool = Field(default=True, description="Self-hosted mode flag.")
+    status: str = 'ok'
+    service: str = 'ai-lead-scoring'
+    provider: str
+    model: str
+    llm_configured: bool
+    provider_connectivity: str = 'not_checked'
+    local_model_required: bool = False
+    configuration_issues: list[str] = Field(default_factory=list)
