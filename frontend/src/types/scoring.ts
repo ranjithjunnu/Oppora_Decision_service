@@ -38,6 +38,7 @@ export interface ScoreResult {
     estimated_cost_usd: number | null; latency_ms: number | null };
 }
 export interface ScoringConfig {
+  people_search_version?: string; lead_list_persistence?: boolean;
   fields: Record<string, { label: string; axis: 'fit' | 'intent'; operators: Operator[] }>;
   policy_version: string; draft_builder_configured: boolean; persistence: boolean;
   scoring_provider: 'llm'; llm_configured: boolean; llm_provider: string; llm_model: string;

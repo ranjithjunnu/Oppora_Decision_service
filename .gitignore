@@ -43,3 +43,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local scoring snapshots and model traces
+data/

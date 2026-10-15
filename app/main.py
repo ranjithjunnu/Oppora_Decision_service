@@ -1,4 +1,4 @@
-"""LLM-first scoring; local-model Decision Lab is an explicit startup option."""
+"""LLM batch scoring with a separate optional Decision Lab."""
 from contextlib import asynccontextmanager
 import os
 from fastapi import FastAPI
@@ -7,18 +7,21 @@ from core.config import is_decision_lab_enabled
 from .api.health import router as health_router
 from .api.scoring import router as scoring_router
 from .api.discovery import router as discovery_router
+from .api.lead_batches import router as lead_batches_router
+from scoring.repository import recover_interrupted
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Provider requests happen only when a user asks for a draft or score.
+    # Restore durable run state; no provider requests occur during startup.
+    recover_interrupted()
     yield
 
 
 app = FastAPI(
     title='Oppora AI Lead Scoring',
-    description='LLM assessment of lead fit, deterministic field checks and transparent scoring.',
-    version='1.4.0', lifespan=lifespan,
+    description='LLM lead filtering and scoring, saved assessments and observable AI calls.',
+    version='1.5.0', lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +33,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(scoring_router)
 app.include_router(discovery_router)
+app.include_router(lead_batches_router)
 if is_decision_lab_enabled():
     from .api.evaluation import router as evaluation_router
     app.include_router(evaluation_router)

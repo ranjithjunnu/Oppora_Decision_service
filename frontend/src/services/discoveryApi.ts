@@ -6,7 +6,8 @@ export interface CompanyRecord {
 }
 export interface PersonRecord {
   id: string; company_id: string; name: string; title: string | null; company_name: string;
-  location: string | null; source: 'sample_person'; lead: Lead;
+  location: string | null; country?: string | null; source: 'sample_person'; lead: Lead;
+  match_state?: 'confirmed' | 'needs_location_review'; search_notes?: string[];
 }
 export interface DiscoveryPage {
   items: (CompanyRecord | PersonRecord)[]; total: number; offset: number; limit: number;

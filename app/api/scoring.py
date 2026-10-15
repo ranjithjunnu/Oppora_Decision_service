@@ -20,13 +20,15 @@ logger = logging.getLogger(__name__)
 
 @router.get('/scoring/config')
 def scoring_config():
+    from scoring.people_search import VERSION
     settings = load_evaluation_settings()
     return {'fields': FIELDS, 'policy_version': POLICY_VERSION,
             'draft_builder_configured': not settings.issues, 'persistence': False,
             'decision_lab_enabled': is_decision_lab_enabled(),
             'scoring_provider': 'llm', 'llm_configured': not settings.issues,
             'llm_provider': settings.provider, 'llm_model': settings.model,
-            'configuration_issues': list(settings.issues)}
+            'configuration_issues': list(settings.issues),
+            'people_search_version': VERSION, 'lead_list_persistence': True}
 
 
 

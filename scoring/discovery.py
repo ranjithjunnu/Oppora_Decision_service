@@ -1,13 +1,12 @@
 """Read-only search of the local directory. No enrichment or live discovery."""
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
+from .normalization import clean, person_experience
+
 DIRECTORY = Path(__file__).resolve().parents[1] / 'datasets' / 'company_directory.json'
-
-
-def clean(value, limit=3000):
-    return str(value).strip()[:limit] if value is not None and str(value).strip() else None
 
 
 def text(*values):
@@ -15,7 +14,7 @@ def text(*values):
 
 
 @lru_cache(maxsize=1)
-def directory():
+def _directory(version):
     data = json.loads(DIRECTORY.read_text(encoding='utf-8'))
     companies, people = [], []
     for ci, raw in enumerate(data['companies']):
@@ -39,13 +38,14 @@ def directory():
                 'name': clean(text_name := ' '.join(str(person.get(k) or '') for k in ('first_name', 'last_name')), 200) or 'Unnamed person',
                 'title': clean(person.get('title'), 500), 'company_name': company['name'],
                 'location': clean(person.get('location'), 300), 'source': 'sample_person',
+                'country': clean(person.get('country'), 100), 'experience_years': person_experience(person),
                 'lead': {
                     'id': person_id, 'company': {
                         'name': company['name'], 'industry': company['industry'], 'country': company['country'],
                         'employee_count': count, 'description': company['description'],
                         'technologies': None, 'technology_inventory_complete': False,
                     },
-                    'person': {'title': clean(person.get('title'), 500), 'summary': clean(person.get('headline')),
+                    'person': {'title': clean(person.get('title'), 500), 'summary': clean(person.get('summary')) or clean(person.get('headline')),
                                'department': clean(person.get('department'), 100), 'seniority': clean(person.get('management_level'), 100)},
                     'signals': {'hiring': None, 'recent_funding_days': None, 'observed_on': None},
                 },
@@ -54,13 +54,26 @@ def directory():
     return companies, people
 
 
+def directory():
+    stat = DIRECTORY.stat()
+    return _directory((stat.st_mtime_ns, stat.st_size))
+
+
 def search(kind, query='', location='', company_id=None, offset=0, limit=20):
     companies, people = directory()
     records = companies if kind == 'companies' else people
     terms = query.casefold().split()
     place = location.strip().casefold()
+    def keyword_match(item, index):
+        if kind == 'companies':
+            return all(term in index for term in terms)
+        # Do not combine role words with hidden departments/company fields or
+        # let VP match SVP. All keywords must occur in one visible field.
+        return not terms or any(all(re.search(r'(?<!\w)' + re.escape(term) + r'(?!\w)', text(value)) for term in terms)
+                                for value in (item['name'], item['title'], item['company_name']))
+
     matches = [item for item, index in records
-               if all(term in index for term in terms)
+               if keyword_match(item, index)
                and (not place or place in text(item.get('location'), item.get('country')))
                and (company_id is None or item.get('company_id') == company_id)]
     return {'items': matches[offset:offset + limit], 'total': len(matches), 'offset': offset, 'limit': limit,
