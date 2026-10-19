@@ -40,20 +40,11 @@ export interface EvaluationResponse {
   request_id: string;
   query: string;
   evaluated_at: string;
-  laya: EvaluationResult;
   llm: EvaluationResult;
-  comparison: {
-    same_decision: boolean | null;
-    confidence_difference: number | null;
-    latency_difference_ms: number | null;
-    latency_ratio: number | null;
-    notes: string[];
-  };
   semantic_input: { query: string; structured_input: Record<string, unknown> | null; context: string | null; criterion: Criterion };
 }
 
 export interface EvaluationConfig {
-  laya: { model: string; ready: boolean };
   llm: { provider: string; model: string | null; configured: boolean; issues: string[]; pricing_configured: boolean };
   default_criterion: Criterion | null;
   evaluation_issues: string[];

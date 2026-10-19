@@ -1,4 +1,4 @@
-"""Replaceable JSON chat transport. Groq is the first configured provider."""
+"""Replaceable JSON chat transport for DeepSeek, Groq and OpenAI-compatible providers."""
 from dataclasses import dataclass
 import json
 from typing import Any, Protocol
@@ -15,6 +15,8 @@ class LLMResponse:
     finish_reason: str | None
     input_tokens: int | None
     output_tokens: int | None
+    cached_input_tokens: int | None = None
+    reasoning_tokens: int | None = None
 
 
 class LLMTransportError(Exception):
@@ -50,6 +52,8 @@ class CompatibleChatEngine:
             response_format = {'type': 'json_schema', 'json_schema': {'name': 'manual_decision', 'strict': True, 'schema': schema}}
         payload = {'model': settings.model, 'messages': messages, 'response_format': response_format, 'stream': False}
         payload['max_completion_tokens' if settings.provider == 'groq' else 'max_tokens'] = settings.max_output_tokens
+        if settings.provider == 'deepseek' and settings.thinking in {'enabled', 'disabled'}:
+            payload['thinking'] = {'type': settings.thinking}
         headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
         if settings.api_key:
             headers['Authorization'] = 'Bearer ' + settings.api_key
@@ -70,11 +74,15 @@ class CompatibleChatEngine:
             raise LLMTransportError('invalid_provider_response', 'The provider returned a non-JSON response.', False, raw) from exc
         if response.is_error or response.is_redirect:
             status = response.status_code
-            code, message = ('provider_error', f'The LLM provider returned HTTP {status}. Inspect its raw response.')
+            # Show the provider's own reason (e.g. "Model Not Exist"); the key is already scrubbed from raw.
+            detail = raw.get('error') if isinstance(raw, dict) else None
+            reason = detail.get('message') if isinstance(detail, dict) else detail if isinstance(detail, str) else None
+            reason = f' Provider says: {str(reason)[:300]}' if reason else ''
+            code, message = ('provider_error', f'The LLM provider returned HTTP {status}.{reason}')
             if status in {401, 403}:
-                code, message = 'provider_auth_error', 'The provider rejected authentication or model access. Check the backend API key and model permissions.'
+                code, message = 'provider_auth_error', 'The provider rejected authentication or model access. Check the backend API key and model permissions.' + reason
             elif status == 429:
-                code, message = 'rate_limited', 'The provider rate limit or quota was reached. Wait before retrying.'
+                code, message = 'rate_limited', 'The provider rate limit or quota was reached. Wait before retrying.' + reason
             raise LLMTransportError(code, message, status == 429 or status >= 500, raw)
         if not isinstance(raw, dict):
             raise LLMTransportError('invalid_provider_response', 'The provider response was not a JSON object.', raw=raw)
@@ -91,16 +99,23 @@ class CompatibleChatEngine:
                 raise ValueError
             usage = raw.get('usage') or {}
 
-            def count(name):
-                item = usage.get(name)
+            def count(name, source=None):
+                item = (usage if source is None else source).get(name)
                 return item if isinstance(item, int) and not isinstance(item, bool) and item >= 0 else None
 
-            return LLMResponse(raw, content, first.get('finish_reason'), count('prompt_tokens'), count('completion_tokens'))
+            # DeepSeek reports prompt_cache_hit_tokens; OpenAI-style APIs report cached_tokens.
+            details = usage.get('prompt_tokens_details') if isinstance(usage.get('prompt_tokens_details'), dict) else {}
+            cached = count('prompt_cache_hit_tokens')
+            if cached is None:
+                cached = count('cached_tokens', details)
+            completion = usage.get('completion_tokens_details') if isinstance(usage.get('completion_tokens_details'), dict) else {}
+            return LLMResponse(raw, content, first.get('finish_reason'), count('prompt_tokens'),
+                               count('completion_tokens'), cached, count('reasoning_tokens', completion))
         except (KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
             raise LLMTransportError('invalid_provider_response', 'The provider response did not contain a usable chat completion.', raw=raw) from exc
 
 
 def create_llm_engine(settings: EvaluationSettings) -> LLMEngine:
-    if settings.provider not in {'groq', 'openai_compatible'}:
+    if settings.provider not in {'deepseek', 'groq', 'openai_compatible'}:
         raise LLMTransportError('configuration_error', 'No adapter is registered for the configured provider.')
     return CompatibleChatEngine(settings)

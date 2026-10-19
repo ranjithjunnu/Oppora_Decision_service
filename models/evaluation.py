@@ -97,19 +97,9 @@ class EvaluationResult(BaseModel):
     error: EvaluationError | None = None
 
 
-class EvaluationComparison(BaseModel):
-    same_decision: bool | None = None
-    confidence_difference: float | None = None
-    latency_difference_ms: float | None = None
-    latency_ratio: float | None = None
-    notes: list[str] = Field(default_factory=list)
-
-
 class EvaluationResponse(BaseModel):
     request_id: str
     query: str
     evaluated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    laya: EvaluationResult
     llm: EvaluationResult
-    comparison: EvaluationComparison
     semantic_input: dict[str, Any]

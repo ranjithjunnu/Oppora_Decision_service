@@ -19,7 +19,7 @@ export interface Targeting {
 export interface ScoringPerson {
   id: string; company_id: string; company_name: string; company_description: string | null;
   name: string; title: string | null; country: string | null; location: string | null;
-  department: string | null; management_level: string | null; experience_years: number | null;
+  department: string | null; management_level: string | null; experience_years: number | string | null;
   headline: string | null; summary: string | null; skills: string | null; source: 'sample_person';
   match_state?: 'confirmed' | 'needs_location_review'; search_notes?: string[];
 }
@@ -27,14 +27,21 @@ export interface LeadExplanation {
   assessment: string; evidence: { field: string; quote: string }[]; gaps: string[];
   source: 'llm' | 'template'; call_id: string; note: string;
 }
+export type DecisionModel = 'llm' | 'jev';
+/** Jev answers per requirement; code selects the lead and computes the score from these probabilities. */
+export interface JevDecision {
+  selected: boolean; score: number; match_probability: number; gates: Record<string, number>;
+  weakest_requirement: string | null; fit_confidence: number | null; fit_probabilities: Record<string, number> | null;
+}
 export interface LeadResult {
   person: ScoringPerson; status: 'pending' | 'matched' | 'not_selected' | 'failed';
   score: number | null; error: string | null; missing_facts: string[];
-  call_id: string | null; explanation: LeadExplanation | null;
+  call_id: string | null; explanation: LeadExplanation | null; jev?: JevDecision;
 }
 export interface RunSummary {
   id: string; created_at: string; status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'interrupted';
   total: number; processed: number; matched: number; failed: number; targeting_description: string; model: string;
+  decision_model?: DecisionModel;
   source_list?: { id: string; name: string; version: number; search_id: string | null } | null;
 }
 

@@ -43,8 +43,7 @@ class LLMEvaluator(Evaluator):
             return error('configuration_error', ' '.join(settings.issues))
         schema = StructuredDecision.model_json_schema()
         schema['properties']['decision']['enum'] = list(prepared.choices)
-        # Laya receives the menu in QuestionSpec.criteria; chat receives the
-        # same ordered menu explicitly, since it is no longer in the state.
+        # Keep the ordered menu explicit and separate from the state facts.
         choice_menu = '\nChoices (label: description):\n' + json.dumps(
             prepared.choices, ensure_ascii=False, separators=(',', ':'))
         formatting = (

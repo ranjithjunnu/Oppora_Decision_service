@@ -4,11 +4,12 @@ import type { CompanyRecord, DiscoveryPage, PersonRecord } from '../services/dis
 import { getScoringConfig } from '../services/scoringApi';
 import { explainLead, getPeopleSearch, getRun, getRuns, interpretTargeting, retryFailedRun, scoreLeadList, searchPeople, startScoring } from '../services/leadBatchApi';
 import { FilterChips, LeadAIActivity, TraceCard } from '../components/LeadAIActivity';
+import { JevChecks } from '../components/DecisionModelToggle';
 import { SaveLeadList } from '../components/SaveLeadList';
 import { LeadListsPanel } from '../components/LeadListsPanel';
 import { PeopleSearchFeedback } from '../components/PeopleSearchFeedback';
 import type { ScoringConfig } from '../types/scoring';
-import type { LeadList, LeadResult, ListMemberSource, PeopleSearchPage, RunSummary, ScoringRun, Targeting } from '../types/leadBatch';
+import type { DecisionModel, LeadList, LeadResult, ListMemberSource, PeopleSearchPage, RunSummary, ScoringRun, Targeting } from '../types/leadBatch';
 import '../discovery.css';
 import '../leadBatch.css';
 
@@ -16,6 +17,7 @@ type Kind = 'companies' | 'people';
 type View = 'directory' | 'lists' | 'results' | 'history';
 const TARGET_KEY = 'laya.batch.target.v1';
 const RUN_KEY = 'laya.batch.run.v1';
+const MODEL_KEY = 'oppora.decision.model.v1';
 function stored<T>(key: string): T | null { try { return JSON.parse(localStorage.getItem(key) || 'null') as T | null; } catch { return null; } }
 function remember(key: string, value: unknown) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Server history remains available. */ } }
 function initials(name: string) { return name.split(/\s+/).slice(0, 2).map(x => x[0]).join('').toUpperCase(); }
@@ -42,6 +44,7 @@ export function LeadScoringConsole() {
   const [saveSource, setSaveSource] = useState<{ source: ListMemberSource; count: number } | null>(null);
   const [listId, setListId] = useState<string | null>(null);
   const [config, setConfig] = useState<ScoringConfig | null>(null);
+  const [decisionModel, setDecisionModel] = useState<DecisionModel>(() => stored<DecisionModel>(MODEL_KEY) === 'jev' ? 'jev' : 'llm');
   const [target, setTarget] = useState<Targeting | null>(() => stored<Targeting>(TARGET_KEY));
   const [description, setDescription] = useState(() => stored<Targeting>(TARGET_KEY)?.description || '');
   const [objective, setObjective] = useState(() => stored<Targeting>(TARGET_KEY)?.objective || '');
@@ -68,6 +71,10 @@ export function LeadScoringConsole() {
   const running = active(run);
   const backendCurrent = config?.people_search_version === 'people-search-v2';
   const searchReady = Boolean(config?.llm_configured && backendCurrent);
+  const jevReady = Boolean(config?.jev_configured);
+  // Jev only makes the scoring decision; it needs the LLM to have interpreted the target first.
+  const modelReady = decisionModel === 'llm' || jevReady;
+  function chooseModel(value: DecisionModel) { setDecisionModel(value); remember(MODEL_KEY, value); }
   const targetNeedsRefresh = !!target && target.prompt_version !== 'people-search-v2';
   const dirtyTarget = !!target && (targetNeedsRefresh || description.trim() !== target.description || objective.trim() !== target.objective);
   const result = run?.results.find(item => item.person.id === detailId);
@@ -209,7 +216,7 @@ export function LeadScoringConsole() {
   async function scoreList(list: LeadList) {
     if (starting || running || !target) return;
     setStarting(true); setError('');
-    try { const next = await scoreLeadList(list.id, list.version, target.id); if (mounted.current) acceptRun(next); }
+    try { const next = await scoreLeadList(list.id, list.version, target.id, decisionModel); if (mounted.current) acceptRun(next); }
     catch (err) { if (mounted.current) setError(message(err)); }
     finally { if (mounted.current) setStarting(false); }
   }
@@ -225,7 +232,7 @@ export function LeadScoringConsole() {
     if (starting || !ids.length) return;
     setStarting(true); setError('');
     try {
-      const next = await startScoring(useTarget.id, ids);
+      const next = await startScoring(useTarget.id, ids, decisionModel);
       if (!mounted.current) return;
       acceptRun(next);
     } catch (err) { if (mounted.current) setError(message(err)); }
@@ -261,10 +268,10 @@ export function LeadScoringConsole() {
 
   return <div className="discover-app">
     <aside className="discover-sidebar">
-      <a className="discover-brand" href="#lead-scoring"><span className="discover-mark">◒</span> laya<span>.</span></a>
+      <a className="discover-brand" href="#lead-scoring"><span className="discover-mark">◒</span> oppora<span>.</span></a>
       <div className="discover-nav-label">WORKSPACE</div>
-      <nav aria-label="Workspace"><a href="#lead-scoring" className="active" aria-current="page">Find & score leads</a><a href="#decision-lab">Decision Lab</a></nav>
-      <div className="discover-workspace"><span className="workspace-avatar">L</span><div><strong>Laya workspace</strong><small>Local lead scoring</small></div></div>
+      <nav aria-label="Workspace"><a href="#lead-scoring" className="active" aria-current="page">Find & score leads</a><a href="#ai-admin">AI Admin</a><a href="#decision-lab">Decision Lab</a></nav>
+      <div className="discover-workspace"><span className="workspace-avatar">O</span><div><strong>Oppora workspace</strong><small>Local lead scoring</small></div></div>
     </aside>
     <main className="discover-main">
       <header className="discover-topbar"><span>Workspace <span className="discover-slash">/</span><strong>Lead scoring</strong></span><span className="discover-status"><i className={searchReady ? 'connected' : ''} />{searchReady ? 'AI ready' : config && !backendCurrent ? 'Backend restart needed' : config ? 'AI setup needed' : 'Backend offline'}</span></header>
@@ -311,10 +318,10 @@ export function LeadScoringConsole() {
           {page && page.total > 0 && !loading && <div className="discover-pagination"><span>{offset + 1}–{Math.min(offset + page.limit, page.total)} of {page.total.toLocaleString()}</span><div><button disabled={offset === 0} onClick={() => setOffset(value => Math.max(0, value - page.limit))}>Previous</button><button disabled={offset + page.limit >= page.total} onClick={() => setOffset(value => value + page.limit)}>Next</button></div></div>}
         </section>}
 
-        {view === 'lists' && <LeadListsPanel listId={listId} onOpen={setListId} onRun={openRun} onBrowse={() => { setView('directory'); changeKind('people'); }} onScore={scoreList} onTarget={useTarget} scoringTarget={target} busy={starting || running || runLoading} aiReady={!!searchReady} targetDirty={dirtyTarget} />}
+        {view === 'lists' && <LeadListsPanel listId={listId} onOpen={setListId} onRun={openRun} onBrowse={() => { setView('directory'); changeKind('people'); }} onScore={scoreList} onTarget={useTarget} scoringTarget={target} busy={starting || running || runLoading} aiReady={!!searchReady} targetDirty={dirtyTarget} decisionModel={decisionModel} onDecisionModel={chooseModel} jevReady={jevReady} llmModel={config?.llm_model} jevModel={config?.jev_model} />}
 
         {view === 'results' && (run ? <section className="batch-results">
-          <div className="batch-run-heading"><div><div className="discover-eyebrow">{running ? 'SCORING IN PROGRESS' : 'SAVED ASSESSMENT'}</div><h2>{running ? `${run.processed} of ${run.total} people assessed` : `${run.matched} ${run.matched === 1 ? 'match' : 'matches'} from ${run.total} people`}</h2><p>{run.targeting_description}</p><small>{new Date(run.created_at).toLocaleString()} · {run.model}</small></div><button className="d-button d-secondary" onClick={downloadRun}>Download run</button></div>
+          <div className="batch-run-heading"><div><div className="discover-eyebrow">{running ? 'SCORING IN PROGRESS' : 'SAVED ASSESSMENT'}</div><h2>{running ? `${run.processed} of ${run.total} people assessed` : `${run.matched} ${run.matched === 1 ? 'match' : 'matches'} from ${run.total} people`}</h2><p>{run.targeting_description}</p><small>{new Date(run.created_at).toLocaleString()} · <span className={`decision-badge ${run.decision_model || 'llm'}`}>{run.decision_model === 'jev' ? 'Decided by Jev' : 'Decided by LLM'}</span> {run.model}</small></div><button className="d-button d-secondary" onClick={downloadRun}>Download run</button></div>
           <FilterChips target={run.targeting} />
           {run.source_list && <p className="lead-inset lead-source-list">Scored from <button className="d-text-button" onClick={() => { setListId(run.source_list!.id); setView('lists'); }}>{run.source_list.name}</button> · List version {run.source_list.version}. This run keeps its original people even if the list changes.</p>}
           {target?.id !== run.targeting_id && <p className="d-note">This run uses the targeting saved with it. Your current targeting applies to new runs.</p>}
@@ -334,9 +341,10 @@ export function LeadScoringConsole() {
     <dialog ref={dialog} className="discover-person-dialog" aria-labelledby="batch-person-heading" onCancel={closeDetails}>
       <div className="discover-drawer-top"><span>{result ? 'AI ASSESSMENT' : 'PERSON DETAILS'}</span><button className="d-icon-button" onClick={closeDetails} aria-label="Close person details" autoFocus>×</button></div>
       {(result || person) && <div className="discover-drawer-body"><span className="discover-avatar person large">{initials(result?.person.name || person?.name || '')}</span><h2 id="batch-person-heading">{result?.person.name || person?.name}</h2><p className="discover-person-role">{result?.person.title || person?.title || 'Title unavailable'}</p><p className="discover-person-company">{result?.person.company_name || person?.company_name} · {result?.person.location || result?.person.country || person?.location || person?.country || 'Location unavailable'}</p><span className="d-sample-label">Generated test profile</span>{person?.search_notes?.map((note, index) => <p className="d-note" key={index}>{note}</p>)}
-        {person && <><section className="discover-person-section"><h3>Company</h3><p>{person.lead.company.description || 'No description supplied.'}</p><h3>Role</h3><p>{person.lead.person.summary || person.title || 'No role information supplied.'}</p></section><section className="discover-person-section"><h3>Check this person against your targeting</h3><p>{target?.description || 'Add your targeting to start scoring.'}</p><button className="d-button d-primary" disabled={!target || dirtyTarget || starting || running || !searchReady} onClick={() => void score([person.id])}>Score this person with AI</button></section></>}
-        {result && <><section className="discover-person-section"><div className="batch-score-large"><span className={`batch-score ${result.status}`}>{statusText(result)}</span><small>{result.status === 'matched' ? 'Score assigned by the LLM' : result.status === 'not_selected' ? 'Omitted from the model’s matching lead list' : result.status === 'failed' ? 'No assessment was produced' : 'Awaiting an assessment'}</small></div>{result.error && <p className="d-error">{result.error}</p>}
-          {result.explanation ? <div className="batch-explanation"><h3>{result.explanation.source === 'llm' ? 'AI explanation' : 'Result summary'}</h3><p>{result.explanation.assessment}</p>{result.explanation.evidence.map((evidence, index) => <blockquote key={index}><small>{evidence.field.replaceAll('_', ' ')}</small>{evidence.quote}</blockquote>)}{result.explanation.gaps.length > 0 && <p><strong>Information gaps:</strong> {result.explanation.gaps.join(' · ')}</p>}<small>{result.explanation.note}</small></div> : <p>The scoring call returns matching IDs and scores. Request a separate explanation to explore the supporting facts.</p>}
+        {person && <><section className="discover-person-section"><h3>Company</h3><p>{person.lead.company.description || 'No description supplied.'}</p><h3>Role</h3><p>{person.lead.person.summary || person.title || 'No role information supplied.'}</p></section><section className="discover-person-section"><h3>Check this person against your targeting</h3><p>{target?.description || 'Add your targeting to start scoring.'}</p><button className="d-button d-primary" disabled={!target || dirtyTarget || starting || running || !searchReady || !modelReady} onClick={() => void score([person.id])}>Score this person with {decisionModel === 'jev' ? 'Jev' : 'the LLM'}</button></section></>}
+        {result && <><section className="discover-person-section"><div className="batch-score-large"><span className={`batch-score ${result.status}`}>{statusText(result)}</span><small>{result.jev ? (result.status === 'matched' ? 'Score computed from Jev’s fit probabilities' : `Not selected: ${(result.jev.weakest_requirement || 'a requirement').replaceAll('_', ' ')} was below the threshold`) : result.status === 'matched' ? 'Score assigned by the LLM' : result.status === 'not_selected' ? 'Omitted from the model’s matching lead list' : result.status === 'failed' ? 'No assessment was produced' : 'Awaiting an assessment'}</small></div>{result.error && <p className="d-error">{result.error}</p>}
+          {result.jev && <JevChecks decision={result.jev} threshold={config?.jev_match_threshold} />}
+          {result.explanation ? <div className="batch-explanation"><h3>{result.explanation.source === 'llm' ? 'AI explanation' : 'Result summary'}</h3><p>{result.explanation.assessment}</p>{result.explanation.evidence.map((evidence, index) => <blockquote key={index}><small>{evidence.field.replaceAll('_', ' ')}</small>{evidence.quote}</blockquote>)}{result.explanation.gaps.length > 0 && <p><strong>Information gaps:</strong> {result.explanation.gaps.join(' · ')}</p>}<small>{result.explanation.note}</small></div> : <p>{result.jev ? 'Jev returns probabilities, not text. An AI explanation is written separately by the LLM.' : 'The scoring call returns matching IDs and scores. Request a separate explanation to explore the supporting facts.'}</p>}
           {['matched', 'not_selected'].includes(result.status) && (!result.explanation || result.explanation.source === 'template') && <button className="d-button d-primary" disabled={explanationBusy || running || !searchReady} onClick={() => void explain()}>{explanationBusy ? 'Explaining…' : result.explanation ? 'Retry AI explanation' : 'Explain this assessment'}</button>}
           {running && <p className="d-detail-note">Explanations become available when this run finishes.</p>}{detailError && <p className="d-error" role="alert">{detailError}</p>}
         </section><section className="discover-person-section"><h3>Facts used for scoring</h3><dl className="batch-facts">{[['Title', result.person.title], ['Country', result.person.country], ['Location', result.person.location], ['Department', result.person.department], ['Seniority', result.person.management_level], ['Experience', result.person.experience_years], ['Headline', result.person.headline], ['Summary', result.person.summary], ['Skills', result.person.skills]].map(([label, value]) => <div key={String(label)}><dt>{label}</dt><dd>{value ?? 'Not supplied'}</dd></div>)}</dl></section>{run?.traces.filter(trace => trace.id === result.call_id || trace.id === result.explanation?.call_id).map(trace => <TraceCard key={trace.id} trace={trace} />)}</>}

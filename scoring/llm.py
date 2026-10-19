@@ -2,10 +2,12 @@
 import json
 import time
 
-from engines.llm_engine import create_llm_engine
+from core.config import estimate_cost
+from engines.llm_engine import LLMTransportError, create_llm_engine
 from engines.structured_output import strict_schema
 from models.scoring import LLMBatchDecision
-from .catalog import OUTCOMES
+from . import ledger
+from .catalog import OUTCOMES, PROMPT_VERSION
 
 
 async def evaluate_criteria(pending, settings, usage, context=None):
@@ -37,23 +39,32 @@ async def evaluate_criteria(pending, settings, usage, context=None):
     )
     usage.request_count = 1
     started = time.perf_counter()
+    cached = None
+    outcomes, error = {}, None
     try:
         response = await create_llm_engine(settings).complete(
             [{'role': 'system', 'content': instructions},
              {'role': 'user', 'content': json.dumps({'criteria': cases, 'profile_context': context or {}}, ensure_ascii=False)}], schema)
         usage.input_tokens = response.input_tokens
         usage.output_tokens = response.output_tokens
-        if settings.pricing_configured and response.input_tokens is not None and response.output_tokens is not None:
-            usage.estimated_cost_usd = (
-                response.input_tokens * settings.input_cost_per_million
-                + response.output_tokens * settings.output_cost_per_million) / 1_000_000
+        cached = response.cached_input_tokens
+        usage.estimated_cost_usd = estimate_cost(settings, response.input_tokens, response.output_tokens, cached)
         if response.finish_reason != 'stop':
             raise ValueError('The LLM response was incomplete or had an unexpected finish reason.')
         result = LLMBatchDecision.model_validate_json(response.content or '')
         ids = [decision.criterion_id for decision in result.decisions]
         if len(ids) != len(set(ids)) or set(ids) != {criterion.id for criterion, _, _ in pending}:
             raise ValueError('The LLM did not return exactly the requested criterion IDs.')
+        for decision in result.decisions:
+            outcomes[decision.outcome] = outcomes.get(decision.outcome, 0) + 1
         return {decision.criterion_id: decision for decision in result.decisions}
+    except Exception as exc:
+        error = exc.message if isinstance(exc, LLMTransportError) else str(exc) or type(exc).__name__
+        raise
     finally:
         usage.latency_ms = round((time.perf_counter() - started) * 1000, 2)
+        ledger.record(settings, 'criterion_judgment', 'Judge ICP criteria', PROMPT_VERSION,
+                      status='failed' if error else 'ok', error=error, latency_ms=usage.latency_ms,
+                      input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+                      cached_input_tokens=cached, items_in=len(pending), decisions=outcomes)
 

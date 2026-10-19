@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EvaluationConfig, EvaluationRequest, EvaluationResponse, HistoryEntry } from '../types';
-import { getConfig, evaluateBoth } from '../services/evaluationApi';
+import { getConfig, evaluateLLM } from '../services/evaluationApi';
 import { QueryInput } from '../components/QueryInput';
 import { ModelResultCard } from '../components/ModelResultCard';
-import { ComparisonPanel } from '../components/ComparisonPanel';
 import { QueryHistory } from '../components/QueryHistory';
 import { RawOutputViewer } from '../components/RawOutputViewer';
 import { Icon } from '../components/Icon';
@@ -33,12 +32,12 @@ export function EvaluationConsole() {
     setConfigError(null);
     getScoringConfig(controller.signal).then(settings => {
       if (!settings.decision_lab_enabled) {
-        if (active) setConfigError('Decision Lab is kept here for model comparisons. Its backend is currently disabled. Start the backend with ENABLE_DECISION_LAB=true to use it.');
+        if (active) setConfigError('Decision Lab is available for manual LLM decisions. Its backend is currently disabled. Start the backend with ENABLE_DECISION_LAB=true to use it.');
         return null;
       }
       return getConfig(controller.signal);
     }).then(value => { if (active) setConfig(value); }).catch(() => {
-      if (active) setConfigError(timedOut ? 'The backend is taking too long to respond. It may still be loading the model.' : 'Cannot reach the backend. Start the Laya service, then reconnect.');
+      if (active) setConfigError(timedOut ? 'The backend is taking too long to respond. Check the backend status.' : 'Cannot reach the backend. Start the Oppora backend, then reconnect.');
     }).finally(() => clearTimeout(timer));
     return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [refresh]);
@@ -57,7 +56,7 @@ export function EvaluationConsole() {
   async function evaluate() {
     if (activeRequest.current) return;
     setValidationError(null); setApiError(null);
-    if (!query.trim()) { setValidationError('Enter a query to compare.'); return; }
+    if (!query.trim()) { setValidationError('Enter a decision request.'); return; }
     let structuredInput: Record<string, unknown> | undefined;
     if (structured.trim()) {
       try {
@@ -73,7 +72,7 @@ export function EvaluationConsole() {
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 180_000);
     setBusy(true); setResponse(null);
     try {
-      const result = await evaluateBoth(request, controller.signal);
+      const result = await evaluateLLM(request, controller.signal);
       if (controller.signal.aborted) return;
       setResponse(result);
       setHistory(items => [{ response: result, request }, ...items].slice(0, 30));
@@ -91,6 +90,7 @@ export function EvaluationConsole() {
       <a href="#main" className="brand" aria-label="Oppora Decision Lab"><span className="brand-mark"><i /><i /><i /></span><span>oppora<span className="brand-dot">.</span></span></a>
       <div className="workspace-label">AI WORKSPACE</div>
       <a className="workspace-link" href="#lead-scoring">Find leads</a>
+      <a className="workspace-link" href="#ai-admin">AI Admin</a>
       <div className="nav-active"><Icon name="compare" /><span>Decision Lab</span><span className="nav-badge">MANUAL</span></div>
       <button className="new-query" type="button" onClick={newQuery} disabled={busy}><Icon name="plus" size={17} />New query</button>
       <QueryHistory entries={history} selected={response?.request_id || null} onSelect={selectHistory} onClear={() => setHistory([])} busy={busy} />
@@ -99,20 +99,18 @@ export function EvaluationConsole() {
     <main id="main" className="main">
       <header className="topbar"><div><span>Workspace</span><Icon name="chevron" size={12} /><strong>Manual evaluation</strong></div><div className="connection"><i className={configError ? 'offline' : config ? 'online' : 'connecting'} />{configError ? 'Backend offline' : config ? 'Backend connected' : 'Connecting…'}<button type="button" className="reconnect" onClick={() => setRefresh(n => n + 1)} disabled={busy} aria-label="Refresh backend configuration">Reconnect</button></div></header>
       <div className="content">
-        <section className="page-heading"><div className="eyebrow"><span />MODEL EXPLORATION</div><h1>One query. Two perspectives.</h1><p>Compare Laya and your LLM on the same decision. Understand the differences.</p></section>
+        <section className="page-heading"><div className="eyebrow"><span />MODEL EXPLORATION</div><h1>Understand each LLM decision.</h1><p>Inspect the configured LLM’s decision, supporting facts and response.</p></section>
         {configError && <div className="service-notice error" role="alert"><Icon name="info" /><span>{configError}</span></div>}
-        {config && !config.llm.configured && <div className="service-notice" role="status"><Icon name="info" /><span><strong>LLM setup needed.</strong> {config.llm.issues.join(' ')} Laya can still return a result.</span></div>}
+        {config && !config.llm.configured && <div className="service-notice" role="status"><Icon name="info" /><span><strong>LLM setup needed.</strong> {config.llm.issues.join(' ')}</span></div>}
         {config?.evaluation_issues.length ? <div className="service-notice" role="status"><Icon name="info" /><span>{config.evaluation_issues.join(' ')}</span></div> : null}
         <QueryInput query={query} onQuery={setQuery} context={context} onContext={setContext} structured={structured} onStructured={setStructured} busy={busy} onEvaluate={evaluate} onCancel={() => activeRequest.current?.abort()} criterion={config?.default_criterion || null} limit={config?.limits.query_chars || 8000} validationError={validationError} />
         {apiError && <div className="service-notice error" role="alert"><Icon name="info" /><span>{apiError}</span></div>}
-        <div className="results-heading" ref={resultSection} tabIndex={-1}><h2>Model responses</h2><span>{busy ? 'Evaluating the same request…' : response ? <>Request <code>{response.request_id.slice(0, 8)}</code></> : 'Side-by-side comparison'}</span></div>
-        {response && response.query !== query.trim() && <div className="stale-notice" role="status">These results belong to the previous query. Evaluate again to compare your edited input.</div>}
-        <div className="results-grid">
-          <ModelResultCard kind="laya" busy={busy} result={response?.laya || null} model={config?.laya.model || 'typed-decisions'} provider="local" />
-          <ModelResultCard kind="llm" busy={busy} result={response?.llm || null} model={config?.llm.model || null} provider={config?.llm.provider || 'Groq'} />
+        <div className="results-heading" ref={resultSection} tabIndex={-1}><h2>LLM response</h2><span>{busy ? 'Evaluating your request…' : response ? <>Request <code>{response.request_id.slice(0, 8)}</code></> : 'Awaiting a decision request'}</span></div>
+        {response && response.query !== query.trim() && <div className="stale-notice" role="status">These results belong to the previous query. Evaluate again to use your edited input.</div>}
+        <div className="results-grid" style={{ gridTemplateColumns: '1fr' }}>
+          <ModelResultCard busy={busy} result={response?.llm || null} model={config?.llm.model || null} provider={config?.llm.provider || 'Groq'} />
         </div>
-        <ComparisonPanel response={response} />
-        {response && <div className="shared-input"><RawOutputViewer title="Inspect the shared evaluation input" output={response.semantic_input} /></div>}
+        {response && <div className="shared-input"><RawOutputViewer title="Inspect the decision input" output={response.semantic_input} /></div>}
         <footer className="page-footer"><span><i className="shared-dot" />Manual exploration · session-only history</span><span>Decisions only. No workflows or lead scores are executed.</span></footer>
       </div>
     </main>

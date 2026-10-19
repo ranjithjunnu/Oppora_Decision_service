@@ -2,11 +2,13 @@
 import json
 import re
 from functools import lru_cache
-from pathlib import Path
 
+from core.config import directory_path
 from .normalization import clean, person_experience
 
-DIRECTORY = Path(__file__).resolve().parents[1] / 'datasets' / 'company_directory.json'
+# Chosen once at startup from DIRECTORY_FILE; restart the backend after changing it.
+DIRECTORY = directory_path()
+REAL_COMPANY_SOURCES = {'oppora_saved', 'oppora_live_search'}
 
 
 def text(*values):
@@ -28,7 +30,7 @@ def _directory(version):
             'industry': clean(raw.get('industry'), 150), 'location': clean(raw.get('location'), 300),
             'country': clean(raw.get('country'), 100), 'size': clean(raw.get('size'), 100),
             'description': clean(raw.get('description')), 'people_count': len(raw.get('leads') or []),
-            'source': 'saved_company' if raw.get('provenance') == 'oppora_saved' else 'sample_company',
+            'source': 'saved_company' if raw.get('provenance') in REAL_COMPANY_SOURCES else 'sample_company',
         }
         companies.append((company, text(company['name'], company['industry'], raw.get('domain'))))
         for pi, person in enumerate(raw.get('leads') or []):

@@ -1,5 +1,6 @@
 """Optional post-score explanation; it cannot change the original result."""
 from models.lead_batch import LeadExplanation
+from . import ledger
 from .trace import invoke
 
 VERSION = 'lead-explanation-v1'
@@ -17,6 +18,9 @@ async def explain(run, item, settings):
     if output is not None and any(e.field not in facts or e.quote not in facts[e.field] for e in output.evidence):
         output = None
         trace.update(status='failed', error='The explanation contained an evidence quote that could not be verified.')
+    ledger.record_trace(settings, trace, 'lead_explanation', items_in=1,
+                        decisions={'explained': 1 if output is not None else 0, 'template_fallback': 0 if output is not None else 1},
+                        links={'run_id': run['id'], 'lead_id': item['person']['id']})
     if output is not None:
         content = {**output.model_dump(), 'source': 'llm', 'call_id': trace['id'],
                    'note': 'Separate AI explanation; quotes are checked against supplied facts. It does not reveal the scoring model’s internal reasoning.'}

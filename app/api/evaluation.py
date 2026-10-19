@@ -1,8 +1,7 @@
-"""One manually submitted case, two model responses. No dataset execution."""
+"""One explicitly submitted case, one LLM result. No dataset execution."""
 from fastapi import APIRouter, HTTPException
 
 from core.config import load_evaluation_settings
-from engines import laya_engine
 from evaluators.service import evaluate_case
 from models.evaluation import DecisionCriterion, EvaluationCase, EvaluationRequest, EvaluationResponse
 from evaluators.criteria import gtm_intent_criterion
@@ -20,10 +19,8 @@ def configured_criterion(task: str) -> DecisionCriterion | None:
 @router.get('/evaluate/config', summary='Public configuration for the manual console')
 async def evaluation_config():
     settings = load_evaluation_settings()
-    engine = laya_engine._engine_instance
     default = configured_criterion(settings.task)
     return {
-        'laya': {'model': engine.default_model if engine else 'typed-decisions', 'ready': bool(engine and engine.ready)},
         'llm': {'provider': settings.provider, 'model': settings.model or None, 'configured': not settings.issues,
                 'issues': list(settings.issues), 'pricing_configured': settings.pricing_configured},
         'default_criterion': default.model_dump() if default else None,
@@ -32,7 +29,7 @@ async def evaluation_config():
     }
 
 
-@router.post('/evaluate', response_model=EvaluationResponse, summary='Manually compare Laya and the configured LLM')
+@router.post('/evaluate', response_model=EvaluationResponse, summary='Evaluate a bounded decision with the configured LLM')
 async def evaluate(request: EvaluationRequest):
     settings = load_evaluation_settings()
     criterion = request.criterion or configured_criterion(settings.task)

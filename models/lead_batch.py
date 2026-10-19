@@ -1,5 +1,5 @@
 """Contracts for the observed Oppora batch filtering/scoring workflow."""
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -44,6 +44,7 @@ class TargetingOutput(StrictModel):
 
 class BatchRequest(StrictModel):
     targeting_id: str = Field(pattern=r'^target_[a-f0-9]{32}$')
+    decision_model: Literal['llm', 'jev'] = 'llm'
     lead_ids: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(min_length=1, max_length=100)
 
     @field_validator('lead_ids')
@@ -60,7 +61,23 @@ class ScoredLead(StrictModel):
 
 
 class LeadFilterResult(StrictModel):
-    scored_leads: list[ScoredLead] = Field(max_length=20)
+    scored_leads: list[ScoredLead] = Field(max_length=200)
+
+
+class OpporaScoredLead(ScoredLead):
+    # Oppora's rows use numeric ids, so the model may answer 1 or "1"; both mean the same row.
+    lead_id: str = Field(min_length=1, max_length=100)
+    # Oppora's LeadFilterResult carries priority_tier; its meaning is not visible, so it is recorded only.
+    priority_tier: int | None = Field(default=None, ge=0, le=10, strict=True)
+
+    @field_validator('lead_id', mode='before')
+    @classmethod
+    def numeric_id(cls, value):
+        return str(value) if isinstance(value, int) and not isinstance(value, bool) else value
+
+
+class OpporaLeadFilterResult(StrictModel):
+    scored_leads: list[OpporaScoredLead] = Field(max_length=200)
 
 
 class ExplanationEvidence(StrictModel):

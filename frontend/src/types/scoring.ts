@@ -44,4 +44,5 @@ export interface ScoringConfig {
   scoring_provider: 'llm'; llm_configured: boolean; llm_provider: string; llm_model: string;
   configuration_issues: string[];
   decision_lab_enabled: boolean;
+  decision_models?: ('llm' | 'jev')[]; jev_configured?: boolean; jev_model?: string; jev_match_threshold?: number;
 }

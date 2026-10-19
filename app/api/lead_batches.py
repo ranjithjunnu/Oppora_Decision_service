@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from core.config import load_evaluation_settings
+from core.config import load_evaluation_settings, load_jev_settings
 from models.lead_batch import BatchRequest, ExplanationRequest, TargetingRequest
 from models.lead_lists import AppendLeadList, CreateLeadList, EditLeadList, PeopleSearchRequest, ScoreLeadList
 from scoring import repository
@@ -23,6 +23,17 @@ def configured():
     if settings.issues:
         raise HTTPException(503, 'Configure the backend LLM provider before using AI scoring.')
     return settings
+
+
+def decision_settings(decision_model):
+    """The LLM is always needed for search interpretation; Jev only when it makes the scoring decision."""
+    settings = configured()
+    if decision_model != 'jev':
+        return settings, None
+    jev = load_jev_settings()
+    if jev.issues:
+        raise HTTPException(503, 'Configure Jev before scoring with it: ' + ' '.join(jev.issues))
+    return settings, jev
 
 
 def require_run(identifier):
@@ -103,7 +114,7 @@ def update_list(list_id: str, request: EditLeadList):
 
 @router.post('/lists/{list_id}/score', status_code=202)
 def score_list(list_id: str, request: ScoreLeadList, background: BackgroundTasks):
-    settings = configured()
+    settings, jev = decision_settings(request.decision_model)
     override = repository.get('target', request.targeting_id) if request.targeting_id else None
     if request.targeting_id and override is None:
         raise HTTPException(404, 'Apply your targeting again before scoring.')
@@ -116,7 +127,8 @@ def score_list(list_id: str, request: ScoreLeadList, background: BackgroundTasks
         if target is None:
             raise ValueError('Apply scoring targeting before scoring this list.')
         source = {'id': document['id'], 'name': document['name'], 'version': document['version'], 'search_id': document.get('search_id')}
-        run = new_run(target, document['people'], settings, source_list=source, persist=False)
+        run = new_run(target, document['people'], settings, source_list=source, persist=False,
+                      decision_model=request.decision_model, jev_settings=jev)
         runs.append(run)
         document['latest_run_id'] = run['id']
 
@@ -128,7 +140,7 @@ def score_list(list_id: str, request: ScoreLeadList, background: BackgroundTasks
         raise HTTPException(409, str(exc)) from exc
     run = runs[0]
     repository.save('run', run)
-    background.add_task(execute_run, run, settings)
+    background.add_task(execute_run, run, settings, jev)
     return run
 
 
@@ -142,7 +154,7 @@ async def targeting(request: TargetingRequest):
 
 @router.post('/runs', status_code=202)
 def start_run(request: BatchRequest, background: BackgroundTasks):
-    settings = configured()
+    settings, jev = decision_settings(request.decision_model)
     target = repository.get('target', request.targeting_id)
     if target is None:
         raise HTTPException(404, 'Apply your targeting again before scoring.')
@@ -152,8 +164,8 @@ def start_run(request: BatchRequest, background: BackgroundTasks):
         raise HTTPException(422, str(exc)) from exc
     except (OSError, KeyError, TypeError):
         raise HTTPException(503, 'The local directory could not be read.')
-    run = new_run(target, people, settings)
-    background.add_task(execute_run, run, settings)
+    run = new_run(target, people, settings, decision_model=request.decision_model, jev_settings=jev)
+    background.add_task(execute_run, run, settings, jev)
     return run
 
 
@@ -169,17 +181,19 @@ def read_run(run_id: str):
 
 @router.post('/runs/{run_id}/retry', status_code=202)
 def retry_failed(run_id: str, background: BackgroundTasks):
-    settings = configured()
     previous = require_run(run_id)
+    decision_model = previous.get('decision_model', 'llm')
+    settings, jev = decision_settings(decision_model)
     if previous['status'] in {'queued', 'running'}:
         raise HTTPException(409, 'Wait for this run to finish before retrying.')
     people = [item['person'] for item in previous['results'] if item['status'] == 'failed']
     if not people:
         raise HTTPException(409, 'There are no failed people to retry.')
-    run = new_run(previous['targeting'], people, settings, source_list=previous.get('source_list'))
+    run = new_run(previous['targeting'], people, settings, source_list=previous.get('source_list'),
+                  decision_model=decision_model, jev_settings=jev)
     run['retry_of'] = previous['id']
     repository.save('run', run)
-    background.add_task(execute_run, run, settings)
+    background.add_task(execute_run, run, settings, jev)
     return run
 
 

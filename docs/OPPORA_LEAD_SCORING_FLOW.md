@@ -43,7 +43,7 @@ The optional objective only breaks ties; it does not create an extra filter. Nat
 
 - People search and standalone target interpretation: LLM, `people-search-v2`; both paths use the same validated interpreter. The search stores prompts, outputs, title variants, validation repairs and retrieval diagnostics. Pagination reuses a saved search without a model call.
 - Named lists, duplicate-ID checks and membership edits: backend.
-- Candidate lookup, company grouping and chunks of at most 20 people: backend.
+- Candidate lookup and company grouping: backend. As in Oppora, each company gets its own call; a company with more people than `LEAD_SCORING_BATCH_SIZE` (default 50) is split into numbered batches, and up to `LEAD_SCORING_CONCURRENCY` (default 4) batches run at once. Oppora was observed sending about 90 people per call; our default is smaller to stay within the output token limit.
 - Inclusion/exclusion and scores: LLM, `oppora-filter-v1`.
 - Response JSON, numeric ranges, unique IDs, membership in the input: backend.
 - Explanation: separate optional LLM request, `lead-explanation-v1`; its cited
@@ -69,7 +69,7 @@ Named lists, search snapshots and scoring runs share the existing SQLite store. 
 
 Scoring a list pins its member facts and list version into a new run. Later edits do not change that run. A retry uses the original failed people's saved facts, even if the directory or list changes. Lists and runs are distinct: a list is a reusable audience; a run is one recorded assessment.
 
-The existing `LLM_PROVIDER`, `LLM_MODEL` and provider credentials are reused.
+The configured provider is reused (DeepSeek when `DEEPSEEK_API_KEY` is set and `LLM_PROVIDER` is blank, matching Oppora). Every call is also written to the AI ledger; see the AI Admin section of the README.
 `LLM_TIMEOUT_SECONDS`, `LLM_MAX_OUTPUT_TOKENS` and optional pricing configuration
 continue to apply. No model calls occur merely by opening the page or starting
 the backend. Natural-language people search, applying targeting, scoring and requesting explanations make calls. Saving, editing and reopening lists do not call an LLM.
@@ -81,8 +81,8 @@ outputs. New scoring requests make new runs; scores are not silently reused.
 Stored targeting lives on the backend; the browser remembers the last applied
 target and last run. A browser refresh can reconnect to a running assessment.
 
-This is a **single-process local service**, using FastAPI background tasks and
-two concurrent scoring slots. Run one backend worker. It is not a distributed
+This is a **single-process local service**, using FastAPI background tasks,
+two concurrent scoring runs and parallel batches within each run. Run one backend worker. It is not a distributed
 queue or a tenant-isolated production deployment. On backend restart, unfinished
 people are marked as failed/interrupted and can be retried. Closing a browser
 does not cancel a submitted scoring run. Use run history after an ambiguous
@@ -111,7 +111,8 @@ History shows the most recent 30 runs; an older run remains retrievable by ID.
 
 The original `/v1/scores` criterion-based scorer remains available to existing
 callers. It is a different scoring method. Decision Lab and its evaluator paths
-are separate. This change does not add Laya comparisons or dynamic tool calling.
+are separate. Decision Lab is LLM-only in the current cleanup phase. JEV integration and dynamic tool execution are not enabled.
 
 No tests, builds, live scoring calls or benchmarks were run during implementation,
 as requested. Runtime and model evaluation are left to the user.
+

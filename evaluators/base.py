@@ -1,4 +1,4 @@
-"""Common input preparation and evaluator interface, shared by both models."""
+"""Common input preparation and evaluator interface, for the current LLM and future decision adapters."""
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import hashlib
@@ -8,7 +8,7 @@ from typing import Any
 from models.evaluation import EvaluationCase, EvaluationResult
 
 
-# Identical semantic instructions accompany both models. Provider-specific JSON
+# Preserve these semantic instructions for future model comparisons. JSON
 # formatting instructions may differ, but never the task facts or choice menu.
 DECISION_POLICY = (
     'Select one supplied label using only the input facts. '

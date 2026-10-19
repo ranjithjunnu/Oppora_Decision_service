@@ -49,11 +49,43 @@ def experience(value):
         return None
 
 
+EXPERIENCE_PATTERNS = (
+    (re.compile(r'^(?:less than|under|<)\s*(\d+(?:\.\d+)?)'), lambda a: (0.0, a)),
+    (re.compile(r'^(?:more than|over|>)\s*(\d+(?:\.\d+)?)'), lambda a: (a, None)),
+    (re.compile(r'^(\d+(?:\.\d+)?)\s*\+'), lambda a: (a, None)),
+)
+EXPERIENCE_SPAN = re.compile(r'^(\d+(?:\.\d+)?)\s*(?:to|-|–)\s*(\d+(?:\.\d+)?)')
+
+
+def experience_range(value):
+    """(low, high) years from a number or a provider band such as "3 to 5 years"; high None means open-ended."""
+    number = experience(value)
+    if number is not None:
+        return number, number
+    if not isinstance(value, str):
+        return None
+    text = ' '.join(value.casefold().split())
+    span = EXPERIENCE_SPAN.match(text)
+    if span:
+        low, high = float(span.group(1)), float(span.group(2))
+        return (low, high) if low <= high else None
+    for pattern, build in EXPERIENCE_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            return build(float(match.group(1)))
+    return None
+
+
 def person_experience(person):
+    """The source value as supplied (a number or a band like "6 to 10 years"), or None when unusable."""
     value = person.get('experience_years')
     if value is None:
         value = person.get('years_experience')
-    return experience(value)
+    number = experience(value)
+    if number is not None:
+        return number
+    label = clean(value, 50) if isinstance(value, str) else None
+    return label if label and experience_range(label) else None
 
 
 def title_tokens(value):

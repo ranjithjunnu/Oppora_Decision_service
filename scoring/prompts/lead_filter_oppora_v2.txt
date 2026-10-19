@@ -1,0 +1,53 @@
+You are filtering leads to identify which ones match the provided filter criteria.
+
+COMPANY: [[COMPANY]]
+
+MAIN OBJECTIVE (tie-breaker only): [[OBJECTIVE]] APPLIED FILTERS: [[APPLIED_FILTERS]] LEADS TO ANALYZE (Batch [[BATCH]]): Columns: id | name | title | location | department | management_level | experience_years | headline | skills | summary
+[[ROWS]]
+
+TASK:
+
+Analyze each lead against the provided filters:
+
+Departments: [[DEPARTMENTS]]
+Management Levels: [[MANAGEMENT_LEVELS]]
+Country: [[COUNTRY]]
+Location: [[LOCATION]]
+Exclude Locations (leads located here must NOT be returned): [[EXCLUDE_LOCATIONS]]
+Title: [[TITLE]]
+Experience: [[EXPERIENCE]]
+
+Identify which leads MATCH the filters and assign each a fit score (0-100).
+
+Return a structured response with:
+
+"scored_leads": [{"lead_id": <id>, "score": <0-100>}, ...] — every matching lead from this batch with its 0-100 fit score.
+
+LEAD DATA: Each row has: id, name, title, location, department, management_level, experience_years, headline, skills. (All leads in this batch belong to COMPANY above — company is not repeated per row.) Some fields may be blank — not every provider populates every field. When a field is blank, infer from title + headline rather than rejecting the lead.
+
+MATCHING RULES:
+
+STRICT on discrete attributes when the lead row clearly contradicts the filter: country, location, management_level, department, experience_years. If the field is present and does not meet the filter → EXCLUDE (do not return). If the field is blank and the title/headline clearly does not match → EXCLUDE. If the field is blank and title/headline is compatible → INCLUDE (benefit of the doubt). management_level and department are canonical fields: when present and not in the filter's list, EXCLUDE the lead even if the title looks senior or related — title flexibility never overrides a contradicting management_level, department, country, or location (e.g. management_level="Owner / Partner" does NOT match ["Manager", "Director"] — exclude). A region named IN the title (e.g. "Sales Director Switzerland") is location evidence and must satisfy the country/location filter. Exclude Locations is a HARD gate: a lead whose location (or region named in the title) falls in any excluded place must NOT be returned, no matter how well the rest matches.
+
+FLEXIBLE on title only. Titles have many real-world variants — treat the filter as a seed for the role, not a literal string match. Examples of acceptable title matches:
+
+"VP Sales" → "Vice President of Sales", "Sales VP", "Head of Sales"
+"Marketing Manager" → "Marketing Lead", "Senior Marketing Manager", "Marketing Director"
+"CTO" → "Chief Technology Officer", "VP Engineering", "Head of Technology"
+"BDR" → "Business Development Representative", "Business Development Rep" When in doubt about title similarity, INCLUDE the lead.
+
+Use MAIN OBJECTIVE only as a tie-breaker (small score nudge) when two candidates are equally good on filters. Do not treat the MAIN OBJECTIVE as an additional filter.
+
+SCORING GUIDE (0-100):
+
+90-100: Matches every present filter on discrete fields AND title is a strong fit.
+70-89: Matches every discrete filter; title is a reasonable variant of the filter.
+50-69: Matches most discrete filters; title is loosely related.
+1-49: Borderline — only include if you're confident it's a real match for the role.
+Do NOT include leads below borderline. Only return leads that genuinely match.
+
+OUTPUT RULES:
+
+Return EVERY lead that matches the filters, each with its score — do not leave any matching lead out.
+Never include a lead that contradicts the filters.
+Every lead_id must come from the analyzed batch above.

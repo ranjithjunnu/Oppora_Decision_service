@@ -19,7 +19,7 @@ export async function getConfig(signal: AbortSignal): Promise<EvaluationConfig> 
   return readResponse(await fetch(`${base}/evaluate/config`, { signal, headers: { Accept: 'application/json' } }));
 }
 
-export async function evaluateBoth(request: EvaluationRequest, signal: AbortSignal): Promise<EvaluationResponse> {
+export async function evaluateLLM(request: EvaluationRequest, signal: AbortSignal): Promise<EvaluationResponse> {
   return readResponse(await fetch(`${base}/evaluate`, {
     method: 'POST', signal, headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(request),

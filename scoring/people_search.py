@@ -3,10 +3,10 @@ import re
 from uuid import uuid4
 
 from models.lead_lists import SearchPlan
-from . import repository
+from . import ledger, repository
 from .discovery import directory
 from .normalization import (COUNTRIES, canonical_country, canonical_department, canonical_level,
-                            clean, normalized, title_tokens)
+                            clean, experience_range, normalized, title_tokens)
 from .normalizer import selected_people
 from .search_validation import validate_plan
 from .trace import invoke, now
@@ -97,13 +97,18 @@ def secondary_metadata(item, filters):
             notes.append('Requested ' + ('department' if field == 'departments' else 'seniority') + ' is not supplied; it remains unknown.')
         elif canonical(actual) not in {canonical(value) for value in wanted}:
             return False, []
-    years = item.get('experience_years')
-    if filters['experience_min'] is not None or filters['experience_max'] is not None:
-        if years is None:
+    minimum, maximum = filters['experience_min'], filters['experience_max']
+    if minimum is not None or maximum is not None:
+        span = experience_range(item.get('experience_years'))
+        if span is None:
             notes.append('Requested experience is not supplied; it remains unknown.')
-        elif ((filters['experience_min'] is not None and years < filters['experience_min'])
-              or (filters['experience_max'] is not None and years > filters['experience_max'])):
-            return False, []
+        else:
+            low, high = span
+            # A band contradicts the request only when no value inside it can satisfy it.
+            if (minimum is not None and high is not None and high < minimum) or (maximum is not None and low > maximum):
+                return False, []
+            if (minimum is not None and low < minimum) or (maximum is not None and (high is None or high > maximum)):
+                notes.append(f'Experience "{item["experience_years"]}" only partly overlaps the requested range.')
     return True, notes
 
 
@@ -132,6 +137,10 @@ async def interpret(request, settings):
 
 async def search_people(request, settings):
     interpreted, trace, traces, error = await interpret(request, settings)
+    search_id = 'search_' + uuid4().hex
+    for item in traces:
+        ledger.record_trace(settings, item, 'search_interpretation',
+                            links={'source': 'people_search', 'search_id': search_id})
     if interpreted is None:
         return None, error
     plan, filters, validation = interpreted
@@ -178,7 +187,7 @@ async def search_people(request, settings):
               'objective': request.objective.strip(), 'filters': filters, 'prompt_version': VERSION,
               'trace': trace, 'interpretation_traces': traces}
     repository.save('target', target)
-    document = {'id': 'search_' + uuid4().hex, 'created_at': now(), 'query': request.description,
+    document = {'id': search_id, 'created_at': now(), 'query': request.description,
                 'targeting': target, 'title_variants': variants, 'company_names': plan.company_names,
                 'company_id': request.company_id, 'total': len(accepted), 'available': min(len(accepted), MAX_RESULTS),
                 'review_total': len(review), 'review_available': min(len(review), MAX_RESULTS),

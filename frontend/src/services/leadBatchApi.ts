@@ -1,4 +1,4 @@
-import type { LeadList, LeadListSummary, ListMemberSource, PeopleSearchPage, RunSummary, ScoringRun, Targeting } from '../types/leadBatch';
+import type { DecisionModel, LeadList, LeadListSummary, ListMemberSource, PeopleSearchPage, RunSummary, ScoringRun, Targeting } from '../types/leadBatch';
 
 const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
@@ -33,7 +33,7 @@ async function request<T>(path: string, body?: unknown, signal?: AbortSignal): P
 }
 
 export const interpretTargeting = (description: string, objective: string) => request<Targeting>('/targeting', { description, objective });
-export const startScoring = (targeting_id: string, lead_ids: string[]) => request<ScoringRun>('/runs', { targeting_id, lead_ids });
+export const startScoring = (targeting_id: string, lead_ids: string[], decision_model: DecisionModel = 'llm') => request<ScoringRun>('/runs', { targeting_id, lead_ids, decision_model });
 export const getRun = (id: string, signal?: AbortSignal) => request<ScoringRun>(`/runs/${encodeURIComponent(id)}`, undefined, signal);
 export const getRuns = () => request<RunSummary[]>('/runs');
 export const explainLead = (run: string, lead_id: string) => request<ScoringRun>(`/runs/${encodeURIComponent(run)}/explanation`, { lead_id });
@@ -44,5 +44,5 @@ export const getLeadList = (id: string, signal?: AbortSignal) => request<LeadLis
 export const createLeadList = (name: string, source: ListMemberSource, targeting_id?: string) => request<LeadList>('/lists', { name, ...source, targeting_id: targeting_id || null });
 export const appendLeadList = (id: string, expected_version: number, source: ListMemberSource) => request<LeadList>(`/lists/${encodeURIComponent(id)}/members`, { ...source, expected_version });
 export const editLeadList = (id: string, expected_version: number, changes: { name?: string; remove_ids?: string[] }) => request<LeadList>(`/lists/${encodeURIComponent(id)}/edit`, { ...changes, expected_version });
-export const scoreLeadList = (id: string, expected_version: number, targeting_id?: string) => request<ScoringRun>(`/lists/${encodeURIComponent(id)}/score`, { expected_version, targeting_id: targeting_id || null });
+export const scoreLeadList = (id: string, expected_version: number, targeting_id?: string, decision_model: DecisionModel = 'llm') => request<ScoringRun>(`/lists/${encodeURIComponent(id)}/score`, { expected_version, targeting_id: targeting_id || null, decision_model });
 export const retryFailedRun = (id: string) => request<ScoringRun>(`/runs/${encodeURIComponent(id)}/retry`, {});

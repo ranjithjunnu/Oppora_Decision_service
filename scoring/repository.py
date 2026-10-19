@@ -14,6 +14,8 @@ def connection():
     try:
         db.execute('PRAGMA busy_timeout=15000')
         db.execute('CREATE TABLE IF NOT EXISTS scoring_documents (kind TEXT NOT NULL, id TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(kind, id))')
+        db.execute('CREATE TABLE IF NOT EXISTS llm_calls (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, decision_point TEXT NOT NULL, payload TEXT NOT NULL)')
+        db.execute('CREATE INDEX IF NOT EXISTS llm_calls_created ON llm_calls(created_at)')
         with db:
             yield db
     finally:
@@ -48,6 +50,30 @@ def list_lead_lists():
         summaries.append({key: document.get(key) for key in
                           ('id', 'name', 'version', 'created_at', 'updated_at', 'member_count', 'latest_run_id')})
     return summaries
+
+
+def record_llm_call(entry):
+    """Append one call to the AI ledger. Full prompts stay in their run/search traces."""
+    with connection() as db:
+        db.execute('INSERT OR REPLACE INTO llm_calls VALUES (?, ?, ?, ?)',
+                   (entry['id'], entry['created_at'], entry['decision_point'], json.dumps(entry, ensure_ascii=False, allow_nan=False)))
+
+
+def list_llm_calls(since=None, decision_point=None, limit=None):
+    query, params = 'SELECT payload FROM llm_calls WHERE 1=1', []
+    if since:
+        query += ' AND created_at >= ?'
+        params.append(since)
+    if decision_point:
+        query += ' AND decision_point = ?'
+        params.append(decision_point)
+    query += ' ORDER BY created_at DESC'
+    if limit:
+        query += ' LIMIT ?'
+        params.append(limit)
+    with connection() as db:
+        rows = db.execute(query, params).fetchall()
+    return [json.loads(row[0]) for row in rows]
 
 
 def mutate_list(identifier, expected_version, change):

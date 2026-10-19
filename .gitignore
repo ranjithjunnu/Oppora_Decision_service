@@ -46,3 +46,12 @@ yarn-error.log*
 
 # Local scoring snapshots and model traces
 data/
+
+# Real people fetched from Oppora for internal testing
+datasets/oppora_live_sample.json
+
+# Reversible migration snapshots
+.backups/
+
+# Stakeholder reports contain internal Oppora usage and cost figures; share them directly, not via a public repo
+docs/reports/

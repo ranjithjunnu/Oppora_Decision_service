@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import { editLeadList, getLeadList, getLeadLists } from '../services/leadBatchApi';
 import { FilterChips } from './LeadAIActivity';
-import type { LeadList, LeadListSummary, Targeting } from '../types/leadBatch';
+import { DecisionModelToggle } from './DecisionModelToggle';
+import type { DecisionModel, LeadList, LeadListSummary, Targeting } from '../types/leadBatch';
 
 interface Props {
   listId: string | null; onOpen: (id: string | null) => void; onRun: (id: string) => void;
   onBrowse: () => void; onScore: (list: LeadList) => Promise<void>;
   onTarget: (target: Targeting | null) => void; scoringTarget: Targeting | null;
   busy: boolean; aiReady: boolean; targetDirty: boolean;
+  decisionModel: DecisionModel; onDecisionModel: (value: DecisionModel) => void;
+  jevReady: boolean; llmModel?: string; jevModel?: string;
 }
 
-export function LeadListsPanel({ listId, onOpen, onRun, onBrowse, onScore, onTarget, scoringTarget, busy, aiReady, targetDirty }: Props) {
+export function LeadListsPanel({ listId, onOpen, onRun, onBrowse, onScore, onTarget, scoringTarget, busy, aiReady, targetDirty,
+  decisionModel, onDecisionModel, jevReady, llmModel, jevModel }: Props) {
   const [lists, setLists] = useState<LeadListSummary[]>([]);
   const [list, setList] = useState<LeadList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +74,8 @@ export function LeadListsPanel({ listId, onOpen, onRun, onBrowse, onScore, onTar
       {renaming && <form className="lead-rename lead-inset" onSubmit={event => { event.preventDefault(); void edit({ name: name.trim() }); }}><label><span className="d-sr-only">List name</span><input value={name} maxLength={120} required onChange={event => setName(event.target.value)} /></label><button className="d-button d-secondary" disabled={editing || !name.trim()}>Save name</button></form>}
       <div className="lead-list-target lead-inset"><strong>Scoring target</strong>{scoringTarget ? <><p>{scoringTarget.description}</p><FilterChips target={scoringTarget} /></> : <p>Add scoring targeting above before assessing this list.</p>}
         {list.targeting && scoringTarget?.id !== list.targeting.id && <p className="d-detail-note">The next run will use your current target. The list’s original search is kept.</p>}
-        <button className="d-button d-primary" disabled={busy || editing || !list.member_count || !scoringTarget || targetDirty || !aiReady} onClick={() => void onScore(list)}>{busy ? 'Scoring in progress…' : `Score this list · ${list.member_count.toLocaleString()} people`}</button>
+        <DecisionModelToggle value={decisionModel} onChange={onDecisionModel} llmModel={llmModel} jevModel={jevModel} jevReady={jevReady} disabled={busy} />
+        <button className="d-button d-primary" disabled={busy || editing || !list.member_count || !scoringTarget || targetDirty || !aiReady || (decisionModel === 'jev' && !jevReady)} onClick={() => void onScore(list)}>{busy ? 'Scoring in progress…' : `Score this list with ${decisionModel === 'jev' ? 'Jev' : 'the LLM'} · ${list.member_count.toLocaleString()} people`}</button>
       </div>
       <div className="batch-selection"><div><strong>{selected.size} selected</strong><small>List membership is saved automatically</small></div><button className="d-button d-secondary" disabled={!selected.size || editing || busy} onClick={() => void edit({ remove_ids: [...selected] })}>{editing ? 'Updating…' : 'Remove selected from list'}</button></div>
       <div className="discover-table-scroll"><table className="discover-table batch-people-table"><thead><tr><th><input type="checkbox" aria-label="Select this page of list members" checked={checked} onChange={() => setSelected(previous => { const next = new Set(previous); rows.forEach(person => { if (checked) next.delete(person.id); else next.add(person.id); }); return next; })} /></th><th>Person</th><th>Company</th><th>Location</th><th>Source</th></tr></thead><tbody>{rows.map(person => <tr key={person.id}><td><input type="checkbox" checked={selected.has(person.id)} aria-label={`Select ${person.name}`} onChange={() => toggle(person.id)} /></td><td><strong className="lead-person-name">{person.name}</strong><small className="batch-role">{person.title || 'Title not supplied'}</small></td><td>{person.company_name}</td><td>{person.location || person.country || 'Not supplied'}{person.match_state === 'needs_location_review' && <small className="search-review-label">Location unverified</small>}</td><td>Generated test profile</td></tr>)}</tbody></table></div>

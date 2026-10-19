@@ -72,3 +72,4 @@ class EditLeadList(StrictModel):
 class ScoreLeadList(StrictModel):
     expected_version: int = Field(ge=1, strict=True)
     targeting_id: str | None = Field(default=None, pattern=r'^target_[a-f0-9]{32}$')
+    decision_model: Literal['llm', 'jev'] = 'llm'

@@ -10,3 +10,22 @@
 @media(max-width:700px){.lead-save-fields{flex-direction:column}.lead-save-panel{padding:20px 18px}.lead-inset{margin-inline:18px}.lead-search-help{margin-inline:18px}.lead-search-plan{margin-inline:18px}.lead-list-actions{margin-inline:18px}.batch-selection{flex-wrap:wrap}.batch-selection .lead-save-actions{width:100%;justify-content:flex-start}.lead-save-actions .d-button{flex:1}.lead-list-target .d-button{white-space:normal;width:100%}.lead-list-target{padding:15px}.lead-rename{flex-wrap:wrap}}
 .search-understood{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:16px;font-size:12px;color:#527e61}.search-understood>span{color:#7f9587;font-size:11px}.search-assumptions,.search-empty-reason{font-size:12px!important;line-height:1.8;color:#708978!important}.search-empty-reason{background:#f1f6f2;border-radius:6px;padding:11px 12px}.search-pool-tabs{padding:7px 0 13px;margin:0}.search-funnel{display:grid;gap:8px;margin:15px 0;max-width:520px}.search-funnel>div{display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid #e1eae3}.search-funnel strong{color:#416b50;font-weight:600}.search-review-label{display:block;margin-top:5px;font-size:10px;color:#a1844b}.search-fact-note{display:block;font-size:10px;line-height:1.7;color:#92a096;margin-top:5px;max-width:230px}.lead-search-plan>.d-note{font-size:12px;line-height:1.8}
 @media(max-width:700px){.search-understood{align-items:flex-start;flex-direction:column;gap:5px}.search-pool-tabs button{white-space:normal;text-align:left;line-height:1.6}}
+
+/* Decision model toggle (LLM / Jev) and Jev checks */
+.decision-toggle{border:0;margin:16px 0 14px;padding:0;min-width:0}.decision-toggle legend{font-size:12px;font-weight:600;color:#405b50;margin-bottom:8px;padding:0}
+.decision-toggle [role=radiogroup]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.decision-toggle label{display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:2px;align-items:center;border:1px solid #dce5e0;border-radius:9px;padding:11px 13px;background:#fcfdfc;cursor:pointer;min-width:0}
+.decision-toggle label.selected{border-color:#267967;background:#eef6f2;box-shadow:0 0 0 1px #267967 inset}
+.decision-toggle label[aria-disabled=true]{cursor:not-allowed;opacity:.6}
+.decision-toggle input{grid-row:span 2;accent-color:#267967;width:16px;height:16px;margin:0}
+.decision-toggle strong{font-size:13px;color:#24423a}.decision-toggle small{font-size:11px;color:#7b8a83;overflow-wrap:anywhere}
+.decision-badge{display:inline-block;font-size:10px;font-weight:650;letter-spacing:.3px;padding:2px 7px;border-radius:5px;margin-right:4px;border:1px solid transparent}
+.decision-badge.llm{background:#eef2fb;color:#3e5f9d;border-color:#dce4f5}.decision-badge.jev{background:#e6f3ee;color:#1f6b55;border-color:#cfe6dc}
+.jev-checks{border:1px solid #dce8e1;background:#f7fbf9;border-radius:10px;padding:14px 16px;margin:14px 0}
+.jev-checks h3{margin:0 0 4px;font-size:13px}.jev-checks p{margin:0 0 10px;font-size:12px;color:#6f8079}
+.jev-checks ul{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:7px}
+.jev-checks li{display:grid;grid-template-columns:minmax(0,1fr) 90px 42px;gap:10px;align-items:center;font-size:12px;color:#3f504a}
+.jev-checks li strong{text-align:right;font-variant-numeric:tabular-nums}.jev-checks li.fail strong{color:#a1452f}
+.jev-bar{display:block;height:6px;border-radius:3px;background:#e4ece8;overflow:hidden}.jev-bar i{display:block;height:100%;background:#2d8572}
+.jev-checks li.fail .jev-bar i{background:#c4705b}.jev-checks small{font-size:11px;color:#7b8a83}
+@media (max-width:640px){.decision-toggle [role=radiogroup]{grid-template-columns:1fr}}
