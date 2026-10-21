@@ -44,7 +44,7 @@ The optional objective only breaks ties; it does not create an extra filter. Nat
 - People search and standalone target interpretation: LLM, `people-search-v2`; both paths use the same validated interpreter. The search stores prompts, outputs, title variants, validation repairs and retrieval diagnostics. Pagination reuses a saved search without a model call.
 - Named lists, duplicate-ID checks and membership edits: backend.
 - Candidate lookup and company grouping: backend. As in Oppora, each company gets its own call; a company with more people than `LEAD_SCORING_BATCH_SIZE` (default 50) is split into numbered batches, and up to `LEAD_SCORING_CONCURRENCY` (default 4) batches run at once. Oppora was observed sending about 90 people per call; our default is smaller to stay within the output token limit.
-- Inclusion/exclusion and scores: LLM, `oppora-filter-v1`.
+- Inclusion/exclusion and scores: LLM by default, using the configured lead prompt (`LEAD_SCORING_PROMPT`). A run may instead choose `decision_model: "jev"` (`jev-lead-gates-v1`): code builds one yes/no question per active filter plus a 4-level fit rating, JEV answers each with a probability in one query per lead, and code selects the lead only when every gate reaches `JEV_MATCH_THRESHOLD`, computing the score from the fit answer. A failed JEV query marks that lead as failed; there is no automatic LLM fallback.
 - Response JSON, numeric ranges, unique IDs, membership in the input: backend.
 - Explanation: separate optional LLM request, `lead-explanation-v1`; its cited
   quotations are checked against saved source fields. Prose correctness is not
@@ -102,8 +102,8 @@ History shows the most recent 30 runs; an older run remains retrievable by ID.
 - `GET /v1/lead-scoring/lists/{list_id}` — saved member facts and list version.
 - `POST /v1/lead-scoring/lists/{list_id}/members` — append with `{expected_version, search_id?, lead_ids?}`.
 - `POST /v1/lead-scoring/lists/{list_id}/edit` — `{expected_version, name?, remove_ids?}`.
-- `POST /v1/lead-scoring/lists/{list_id}/score` — `{expected_version, targeting_id?}`; scores saved member snapshots, up to 1,000 people.
-- `POST /v1/lead-scoring/runs` — `{targeting_id, lead_ids}`, returns 202 and a saved run.
+- `POST /v1/lead-scoring/lists/{list_id}/score` — `{expected_version, targeting_id?, decision_model?}`; scores saved member snapshots, up to 1,000 people. `decision_model` is `"llm"` (default) or `"jev"`.
+- `POST /v1/lead-scoring/runs` — `{targeting_id, lead_ids, decision_model?}`, returns 202 and a saved run.
 - `GET /v1/lead-scoring/runs` — recent run summaries.
 - `GET /v1/lead-scoring/runs/{run_id}` — results, progress and recorded AI activity.
 - `POST /v1/lead-scoring/runs/{run_id}/retry` — retry failed people using their saved facts.
@@ -111,7 +111,7 @@ History shows the most recent 30 runs; an older run remains retrievable by ID.
 
 The original `/v1/scores` criterion-based scorer remains available to existing
 callers. It is a different scoring method. Decision Lab and its evaluator paths
-are separate. Decision Lab is LLM-only in the current cleanup phase. JEV integration and dynamic tool execution are not enabled.
+are separate. Decision Lab is LLM-only in the current cleanup phase. JEV is available only for the lead filter-and-score step above, as an opt-in per run; dynamic tool execution is not enabled.
 
 No tests, builds, live scoring calls or benchmarks were run during implementation,
 as requested. Runtime and model evaluation are left to the user.
