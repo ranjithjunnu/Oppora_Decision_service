@@ -1,0 +1,2334 @@
+{
+ "_meta": {
+  "purpose": "Wider labelled test set for comparing LLM and JEV lead filter-and-score decisions across different targets.",
+  "status": "DRAFT labels proposed by Claude on 2026-10-21. Business review required before results are trusted.",
+  "source": "Synthetic. All people and companies are fictional; any resemblance to real people is coincidental. Safe to keep in Git.",
+  "use": "Load as the directory with DIRECTORY_FILE=lead_scoring_scenarios.json. Score each scenario only against its own lead_keys. Report holdout scenarios separately and never tune question rules against them.",
+  "label_meaning": {
+   "match": "Should be selected for this scenario.",
+   "no_match": "Should not be selected (wrong role, location, experience, department or seniority, or an excluded place).",
+   "borderline": "Depends on a policy choice listed in open_questions; excluded from accuracy until decided."
+  },
+  "ids": "expected.directory_id is the id the backend assigns (company_id:index). key is stable for reviewers.",
+  "people": 83,
+  "open_questions": [
+   "Unknown fields (experience, location or level not supplied): include with benefit of the doubt, or exclude? Both current paths include them. They are labelled borderline here until you decide.",
+   "Experience bands that only partly fit (for example \"6 to 10 years\" against 3-8): include or exclude?",
+   "More senior titles than requested (Marketing Director for Marketing Manager, Senior VP for VP, Chief People Officer for HR Director): include?",
+   "Managers of the requested role (Engineering Manager, Nursing Unit Manager): include?",
+   "Adjacent roles (Software Engineer in Test, Machine Learning Engineer, Head of HR): include?",
+   "\"Not in New York\": the city only, or the whole state?"
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "S1",
+   "holdout": false,
+   "query": "Software engineers in the United States with 5+ years of experience",
+   "covers": "Individual-contributor role (not leadership), minimum experience, US metro areas without a country",
+   "expected_filters": {
+    "titles": [
+     "Software Engineer"
+    ],
+    "countries": [
+     "United States"
+    ],
+    "experience_min": 5
+   },
+   "lead_keys": [
+    "S1-01",
+    "S1-02",
+    "S1-03",
+    "S1-04",
+    "S1-05",
+    "S1-06",
+    "S1-07",
+    "S1-08",
+    "S1-09",
+    "S1-10",
+    "S1-11",
+    "S1-12",
+    "S1-13",
+    "S1-14"
+   ]
+  },
+  {
+   "id": "S2",
+   "holdout": false,
+   "query": "HR directors in the United Kingdom, excluding London",
+   "covers": "Excluded location inside a target country, London boroughs and Greater London, HR title variants",
+   "expected_filters": {
+    "titles": [
+     "HR Director"
+    ],
+    "countries": [
+     "United Kingdom"
+    ],
+    "exclude_locations": [
+     "London"
+    ]
+   },
+   "lead_keys": [
+    "S2-01",
+    "S2-02",
+    "S2-03",
+    "S2-04",
+    "S2-05",
+    "S2-06",
+    "S2-07",
+    "S2-08",
+    "S2-09",
+    "S2-10",
+    "S2-11",
+    "S2-12",
+    "S2-13"
+   ]
+  },
+  {
+   "id": "S3",
+   "holdout": false,
+   "query": "People in the Sales department at Director or Vice President seniority in Canada",
+   "covers": "Explicit department and management-level fields, field contradicting a sales-sounding title",
+   "expected_filters": {
+    "countries": [
+     "Canada"
+    ],
+    "departments": [
+     "Sales"
+    ],
+    "management_levels": [
+     "Director",
+     "Vice President"
+    ]
+   },
+   "lead_keys": [
+    "S3-01",
+    "S3-02",
+    "S3-03",
+    "S3-04",
+    "S3-05",
+    "S3-06",
+    "S3-07",
+    "S3-08",
+    "S3-09",
+    "S3-10",
+    "S3-11"
+   ]
+  },
+  {
+   "id": "S4",
+   "holdout": false,
+   "query": "Marketing managers in Germany or France with between 3 and 8 years of experience",
+   "covers": "Two countries, experience range with a maximum, regions without a country, manager-level role",
+   "expected_filters": {
+    "titles": [
+     "Marketing Manager"
+    ],
+    "countries": [
+     "Germany",
+     "France"
+    ],
+    "experience_min": 3,
+    "experience_max": 8
+   },
+   "lead_keys": [
+    "S4-01",
+    "S4-02",
+    "S4-03",
+    "S4-04",
+    "S4-05",
+    "S4-06",
+    "S4-07",
+    "S4-08",
+    "S4-09",
+    "S4-10",
+    "S4-11",
+    "S4-12"
+   ]
+  },
+  {
+   "id": "S5",
+   "holdout": false,
+   "query": "Founders or CEOs in India",
+   "covers": "Founder/CEO variants, cities inside India (including Mumbai), India/Indiana and founder-office traps",
+   "expected_filters": {
+    "titles": [
+     "Founder",
+     "CEO"
+    ],
+    "countries": [
+     "India"
+    ]
+   },
+   "lead_keys": [
+    "S5-01",
+    "S5-02",
+    "S5-03",
+    "S5-04",
+    "S5-05",
+    "S5-06",
+    "S5-07",
+    "S5-08",
+    "S5-09",
+    "S5-10",
+    "S5-11",
+    "S5-12"
+   ]
+  },
+  {
+   "id": "H1",
+   "holdout": true,
+   "query": "Nurses in Australia, excluding Sydney",
+   "covers": "Unrelated domain (healthcare), suburb inside an excluded city, student and recruiter traps",
+   "expected_filters": {
+    "titles": [
+     "Nurse"
+    ],
+    "countries": [
+     "Australia"
+    ],
+    "exclude_locations": [
+     "Sydney"
+    ]
+   },
+   "lead_keys": [
+    "H1-01",
+    "H1-02",
+    "H1-03",
+    "H1-04",
+    "H1-05",
+    "H1-06",
+    "H1-07",
+    "H1-08",
+    "H1-09",
+    "H1-10"
+   ]
+  },
+  {
+   "id": "H2",
+   "holdout": true,
+   "query": "Data scientists in the United States or Canada with at most 4 years of experience, not in New York",
+   "covers": "Maximum experience, exclusion where \"New York\" may mean the city or the state, adjacent roles",
+   "expected_filters": {
+    "titles": [
+     "Data Scientist"
+    ],
+    "countries": [
+     "United States",
+     "Canada"
+    ],
+    "exclude_locations": [
+     "New York"
+    ],
+    "experience_max": 4
+   },
+   "lead_keys": [
+    "H2-01",
+    "H2-02",
+    "H2-03",
+    "H2-04",
+    "H2-05",
+    "H2-06",
+    "H2-07",
+    "H2-08",
+    "H2-09",
+    "H2-10",
+    "H2-11"
+   ]
+  }
+ ],
+ "companies": [
+  {
+   "company_id": "syn-s1-1",
+   "name": "Brightwave Software",
+   "leads": [
+    {
+     "key": "S1-01",
+     "first_name": "Maya",
+     "last_name": "Lindqvist",
+     "title": "Senior Software Engineer",
+     "location": "Austin, Texas, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 8,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Software engineer variant in the US with 8 years",
+      "pool": "S1",
+      "tags": [
+       "clear",
+       "title_variant"
+      ],
+      "directory_id": "syn-s1-1:0"
+     }
+    },
+    {
+     "key": "S1-04",
+     "first_name": "Lucas",
+     "last_name": "Moreau",
+     "title": "Staff Software Engineer",
+     "location": "San Francisco Bay Area",
+     "department": null,
+     "management_level": null,
+     "years_experience": 11,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Bay Area lies inside the US although no country is written",
+      "pool": "S1",
+      "tags": [
+       "location_no_country",
+       "title_variant"
+      ],
+      "directory_id": "syn-s1-1:1"
+     }
+    },
+    {
+     "key": "S1-07",
+     "first_name": "Sofia",
+     "last_name": "Alvarez",
+     "title": "Junior Software Engineer",
+     "location": "Denver, Colorado, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 1,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Junior with 1 year of experience",
+      "pool": "S1",
+      "tags": [
+       "experience_fail"
+      ],
+      "directory_id": "syn-s1-1:2"
+     }
+    },
+    {
+     "key": "S1-10",
+     "first_name": "Owen",
+     "last_name": "Fischer",
+     "title": "Mechanical Engineer",
+     "location": "Detroit, Michigan, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 10,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Different engineering discipline",
+      "pool": "S1",
+      "tags": [
+       "wrong_role",
+       "trap"
+      ],
+      "directory_id": "syn-s1-1:3"
+     }
+    },
+    {
+     "key": "S1-13",
+     "first_name": "Marcus",
+     "last_name": "Reed",
+     "title": "Engineering Manager",
+     "location": "San Jose, California, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 12,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Manages engineers; not clearly an engineer role",
+      "pool": "S1",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-s1-1:4"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s1-2",
+   "name": "Kestrel Cloud",
+   "leads": [
+    {
+     "key": "S1-02",
+     "first_name": "Daniel",
+     "last_name": "Okafor",
+     "title": "Software Developer",
+     "location": "New York, New York, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": "6 to 10 years",
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Developer is a close variant; the whole band meets 5+",
+      "pool": "S1",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-s1-2:0"
+     }
+    },
+    {
+     "key": "S1-05",
+     "first_name": "Hannah",
+     "last_name": "Brooks",
+     "title": "Software Engineer",
+     "location": "Toronto, Ontario, Canada",
+     "department": null,
+     "management_level": null,
+     "years_experience": 10,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Located in Canada, not the US",
+      "pool": "S1",
+      "tags": [
+       "wrong_location"
+      ],
+      "directory_id": "syn-s1-2:1"
+     }
+    },
+    {
+     "key": "S1-08",
+     "first_name": "Arjun",
+     "last_name": "Mehta",
+     "title": "Software Engineer",
+     "location": "Bengaluru, Karnataka, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 9,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Located in India, not the US",
+      "pool": "S1",
+      "tags": [
+       "wrong_location"
+      ],
+      "directory_id": "syn-s1-2:2"
+     }
+    },
+    {
+     "key": "S1-11",
+     "first_name": "Leo",
+     "last_name": "Tanaka",
+     "title": "Software Engineering Intern",
+     "location": "Palo Alto, California, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 0.5,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Intern with under a year of experience",
+      "pool": "S1",
+      "tags": [
+       "experience_fail",
+       "trap"
+      ],
+      "directory_id": "syn-s1-2:3"
+     }
+    },
+    {
+     "key": "S1-14",
+     "first_name": "Chloe",
+     "last_name": "Bennett",
+     "title": "Software Engineer",
+     "location": "Austin, Texas, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": null,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Experience not supplied",
+      "pool": "S1",
+      "tags": [
+       "unknown_field"
+      ],
+      "directory_id": "syn-s1-2:4"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s1-3",
+   "name": "Orchard Systems",
+   "leads": [
+    {
+     "key": "S1-03",
+     "first_name": "Priya",
+     "last_name": "Raman",
+     "title": "Backend Engineer",
+     "location": "Seattle, Washington, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 7,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Backend engineer is a software engineering role",
+      "pool": "S1",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-s1-3:0"
+     }
+    },
+    {
+     "key": "S1-06",
+     "first_name": "Ethan",
+     "last_name": "Cole",
+     "title": "Software Engineer",
+     "location": "Boston, Massachusetts, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 2,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Only 2 years of experience",
+      "pool": "S1",
+      "tags": [
+       "experience_fail"
+      ],
+      "directory_id": "syn-s1-3:1"
+     }
+    },
+    {
+     "key": "S1-09",
+     "first_name": "Grace",
+     "last_name": "Kim",
+     "title": "Data Analyst",
+     "location": "Chicago, Illinois, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 6,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Analyst, not a software engineer",
+      "pool": "S1",
+      "tags": [
+       "wrong_role"
+      ],
+      "directory_id": "syn-s1-3:2"
+     }
+    },
+    {
+     "key": "S1-12",
+     "first_name": "Nina",
+     "last_name": "Petrova",
+     "title": "Software Engineer in Test",
+     "location": "Seattle, Washington, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 6,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Test automation role; may or may not count as a software engineer",
+      "pool": "S1",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-s1-3:3"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s2-1",
+   "name": "Harbourline Group",
+   "leads": [
+    {
+     "key": "S2-01",
+     "first_name": "Emily",
+     "last_name": "Hartley",
+     "title": "HR Director",
+     "location": "Manchester, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 15,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "HR Director in the UK outside London",
+      "pool": "S2",
+      "tags": [
+       "clear"
+      ],
+      "directory_id": "syn-s2-1:0"
+     }
+    },
+    {
+     "key": "S2-04",
+     "first_name": "Tom",
+     "last_name": "Whitaker",
+     "title": "HR Director",
+     "location": "London, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 20,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "In London, which is excluded",
+      "pool": "S2",
+      "tags": [
+       "excluded_location"
+      ],
+      "directory_id": "syn-s2-1:1"
+     }
+    },
+    {
+     "key": "S2-07",
+     "first_name": "Sophie",
+     "last_name": "Clarke",
+     "title": "HR Manager",
+     "location": "Leeds, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 8,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Manager, not director",
+      "pool": "S2",
+      "tags": [
+       "seniority_mismatch"
+      ],
+      "directory_id": "syn-s2-1:2"
+     }
+    },
+    {
+     "key": "S2-10",
+     "first_name": "James",
+     "last_name": "Holt",
+     "title": "Finance Director",
+     "location": "Manchester, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 19,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Different function",
+      "pool": "S2",
+      "tags": [
+       "wrong_role"
+      ],
+      "directory_id": "syn-s2-1:3"
+     }
+    },
+    {
+     "key": "S2-13",
+     "first_name": "Laura",
+     "last_name": "Bishop",
+     "title": "HR Director EMEA",
+     "location": null,
+     "department": null,
+     "management_level": null,
+     "years_experience": 16,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Location not supplied; EMEA does not settle London or not",
+      "pool": "S2",
+      "tags": [
+       "unknown_field"
+      ],
+      "directory_id": "syn-s2-1:4"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s2-2",
+   "name": "Fernhill Retail",
+   "leads": [
+    {
+     "key": "S2-02",
+     "first_name": "Callum",
+     "last_name": "Fraser",
+     "title": "Director of Human Resources",
+     "location": "Edinburgh, Scotland, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 18,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Title variant; Scotland is in the UK",
+      "pool": "S2",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-s2-2:0"
+     }
+    },
+    {
+     "key": "S2-05",
+     "first_name": "Olivia",
+     "last_name": "Grant",
+     "title": "HR Director",
+     "location": "Greater London, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 14,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Greater London counts as London",
+      "pool": "S2",
+      "tags": [
+       "excluded_location"
+      ],
+      "directory_id": "syn-s2-2:1"
+     }
+    },
+    {
+     "key": "S2-08",
+     "first_name": "Sean",
+     "last_name": "Byrne",
+     "title": "HR Director",
+     "location": "Dublin, Ireland",
+     "department": null,
+     "management_level": null,
+     "years_experience": 17,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Ireland is not part of the UK",
+      "pool": "S2",
+      "tags": [
+       "wrong_location",
+       "trap"
+      ],
+      "directory_id": "syn-s2-2:2"
+     }
+    },
+    {
+     "key": "S2-11",
+     "first_name": "Fiona",
+     "last_name": "MacLeod",
+     "title": "Head of HR",
+     "location": "Glasgow, Scotland, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 13,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Head of HR is often equivalent to HR Director, but not always",
+      "pool": "S2",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-s2-2:3"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s2-3",
+   "name": "Calder Logistics",
+   "leads": [
+    {
+     "key": "S2-03",
+     "first_name": "Aisha",
+     "last_name": "Rahman",
+     "title": "People Director",
+     "location": "Bristol, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 12,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "People Director is the common modern HR Director title",
+      "pool": "S2",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-s2-3:0"
+     }
+    },
+    {
+     "key": "S2-06",
+     "first_name": "Ravi",
+     "last_name": "Patel",
+     "title": "HR Director",
+     "location": "Croydon, London, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 16,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Croydon is a London borough",
+      "pool": "S2",
+      "tags": [
+       "excluded_location",
+       "trap"
+      ],
+      "directory_id": "syn-s2-3:1"
+     }
+    },
+    {
+     "key": "S2-09",
+     "first_name": "Megan",
+     "last_name": "Lewis",
+     "title": "HR Business Partner",
+     "location": "Birmingham, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 9,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Business partner, not director",
+      "pool": "S2",
+      "tags": [
+       "wrong_role"
+      ],
+      "directory_id": "syn-s2-3:2"
+     }
+    },
+    {
+     "key": "S2-12",
+     "first_name": "Gareth",
+     "last_name": "Evans",
+     "title": "Chief People Officer",
+     "location": "Cardiff, Wales, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 22,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "More senior than director; may or may not be wanted",
+      "pool": "S2",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-s2-3:3"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s3-1",
+   "name": "Maplecrest Analytics",
+   "leads": [
+    {
+     "key": "S3-01",
+     "first_name": "Andre",
+     "last_name": "Tremblay",
+     "title": "Sales Director",
+     "location": "Toronto, Ontario, Canada",
+     "department": "Sales",
+     "management_level": "Director",
+     "years_experience": 14,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Sales department, Director level, in Canada",
+      "pool": "S3",
+      "tags": [
+       "clear",
+       "department_field",
+       "seniority_field"
+      ],
+      "directory_id": "syn-s3-1:0"
+     }
+    },
+    {
+     "key": "S3-04",
+     "first_name": "Isabelle",
+     "last_name": "Gagnon",
+     "title": "Sales Manager",
+     "location": "Montreal, Quebec, Canada",
+     "department": "Sales",
+     "management_level": "Manager",
+     "years_experience": 8,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Manager level, not Director or VP",
+      "pool": "S3",
+      "tags": [
+       "seniority_field",
+       "seniority_mismatch"
+      ],
+      "directory_id": "syn-s3-1:1"
+     }
+    },
+    {
+     "key": "S3-07",
+     "first_name": "Mark",
+     "last_name": "Davies",
+     "title": "Sales Director",
+     "location": "Seattle, Washington, United States",
+     "department": "Sales",
+     "management_level": "Director",
+     "years_experience": 15,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Located in the US, not Canada",
+      "pool": "S3",
+      "tags": [
+       "wrong_location"
+      ],
+      "directory_id": "syn-s3-1:2"
+     }
+    },
+    {
+     "key": "S3-10",
+     "first_name": "Samir",
+     "last_name": "Haddad",
+     "title": "Head of Sales",
+     "location": "Toronto, Ontario, Canada",
+     "department": "Sales",
+     "management_level": null,
+     "years_experience": 13,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Sales department, but management level not supplied",
+      "pool": "S3",
+      "tags": [
+       "unknown_field",
+       "department_field"
+      ],
+      "directory_id": "syn-s3-1:3"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s3-2",
+   "name": "Northshore Payments",
+   "leads": [
+    {
+     "key": "S3-02",
+     "first_name": "Jessica",
+     "last_name": "Wong",
+     "title": "VP Sales",
+     "location": "Vancouver, British Columbia, Canada",
+     "department": "Sales",
+     "management_level": "Vice President",
+     "years_experience": 16,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Sales department, Vice President level",
+      "pool": "S3",
+      "tags": [
+       "department_field",
+       "seniority_field"
+      ],
+      "directory_id": "syn-s3-2:0"
+     }
+    },
+    {
+     "key": "S3-05",
+     "first_name": "Kevin",
+     "last_name": "Singh",
+     "title": "Director of Marketing",
+     "location": "Toronto, Ontario, Canada",
+     "department": "Marketing",
+     "management_level": "Director",
+     "years_experience": 11,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Marketing department",
+      "pool": "S3",
+      "tags": [
+       "department_field"
+      ],
+      "directory_id": "syn-s3-2:1"
+     }
+    },
+    {
+     "key": "S3-08",
+     "first_name": "Zoe",
+     "last_name": "Martin",
+     "title": "Account Executive",
+     "location": "Toronto, Ontario, Canada",
+     "department": "Sales",
+     "management_level": "Individual Contributor",
+     "years_experience": 5,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Individual contributor",
+      "pool": "S3",
+      "tags": [
+       "seniority_field"
+      ],
+      "directory_id": "syn-s3-2:2"
+     }
+    },
+    {
+     "key": "S3-11",
+     "first_name": "Claire",
+     "last_name": "Dubois",
+     "title": "Senior Vice President, Sales",
+     "location": "Toronto, Ontario, Canada",
+     "department": "Sales",
+     "management_level": "Senior Vice President",
+     "years_experience": 20,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Senior VP is above VP; strict field matching would exclude it",
+      "pool": "S3",
+      "tags": [
+       "seniority_field",
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-s3-2:3"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s3-3",
+   "name": "Tundra Robotics",
+   "leads": [
+    {
+     "key": "S3-03",
+     "first_name": "Ryan",
+     "last_name": "MacDonald",
+     "title": "Regional Sales Director",
+     "location": "Calgary, Alberta, Canada",
+     "department": "Sales",
+     "management_level": "Director",
+     "years_experience": 12,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Sales department, Director level",
+      "pool": "S3",
+      "tags": [
+       "department_field",
+       "seniority_field"
+      ],
+      "directory_id": "syn-s3-3:0"
+     }
+    },
+    {
+     "key": "S3-06",
+     "first_name": "Laura",
+     "last_name": "Chen",
+     "title": "Director of Sales Operations",
+     "location": "Ottawa, Ontario, Canada",
+     "department": "Operations",
+     "management_level": "Director",
+     "years_experience": 10,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Department field says Operations, which contradicts Sales",
+      "pool": "S3",
+      "tags": [
+       "department_field",
+       "trap"
+      ],
+      "directory_id": "syn-s3-3:1"
+     }
+    },
+    {
+     "key": "S3-09",
+     "first_name": "Paul",
+     "last_name": "Bouchard",
+     "title": "Chief Executive Officer",
+     "location": "Toronto, Ontario, Canada",
+     "department": "C-Suite",
+     "management_level": "C-Level",
+     "years_experience": 25,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "C-suite, not the Sales department",
+      "pool": "S3",
+      "tags": [
+       "department_field",
+       "seniority_field"
+      ],
+      "directory_id": "syn-s3-3:2"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s4-1",
+   "name": "Lindenhof Media",
+   "leads": [
+    {
+     "key": "S4-01",
+     "first_name": "Lena",
+     "last_name": "Schröder",
+     "title": "Marketing Manager",
+     "location": "Berlin, Germany",
+     "department": null,
+     "management_level": null,
+     "years_experience": 5,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Marketing Manager in Germany within the range",
+      "pool": "S4",
+      "tags": [
+       "clear"
+      ],
+      "directory_id": "syn-s4-1:0"
+     }
+    },
+    {
+     "key": "S4-04",
+     "first_name": "Inès",
+     "last_name": "Moreau",
+     "title": "Marketing Manager",
+     "location": "Île-de-France",
+     "department": null,
+     "management_level": null,
+     "years_experience": 4,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Île-de-France is a French region; no country written",
+      "pool": "S4",
+      "tags": [
+       "location_no_country"
+      ],
+      "directory_id": "syn-s4-1:1"
+     }
+    },
+    {
+     "key": "S4-07",
+     "first_name": "Lukas",
+     "last_name": "Huber",
+     "title": "Marketing Manager",
+     "location": "Vienna, Austria",
+     "department": null,
+     "management_level": null,
+     "years_experience": 5,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Austria is not a target country",
+      "pool": "S4",
+      "tags": [
+       "wrong_location",
+       "trap"
+      ],
+      "directory_id": "syn-s4-1:2"
+     }
+    },
+    {
+     "key": "S4-10",
+     "first_name": "Hugo",
+     "last_name": "Bernard",
+     "title": "Marketing Director",
+     "location": "Paris, France",
+     "department": null,
+     "management_level": null,
+     "years_experience": 7,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Director is above manager; the Oppora prompt treats it as a variant",
+      "pool": "S4",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-s4-1:3"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s4-2",
+   "name": "Atelier Numérique",
+   "leads": [
+    {
+     "key": "S4-02",
+     "first_name": "Camille",
+     "last_name": "Laurent",
+     "title": "Senior Marketing Manager",
+     "location": "Paris, France",
+     "department": null,
+     "management_level": null,
+     "years_experience": "3 to 5 years",
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Variant in France; the whole band is inside the range",
+      "pool": "S4",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-s4-2:0"
+     }
+    },
+    {
+     "key": "S4-05",
+     "first_name": "Felix",
+     "last_name": "Wagner",
+     "title": "Marketing Manager",
+     "location": "Munich, Germany",
+     "department": null,
+     "management_level": null,
+     "years_experience": 12,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "12 years exceeds the 8-year maximum",
+      "pool": "S4",
+      "tags": [
+       "experience_fail"
+      ],
+      "directory_id": "syn-s4-2:1"
+     }
+    },
+    {
+     "key": "S4-08",
+     "first_name": "Noah",
+     "last_name": "Keller",
+     "title": "Marketing Manager",
+     "location": "Zurich, Switzerland",
+     "department": null,
+     "management_level": null,
+     "years_experience": 6,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Switzerland is not a target country",
+      "pool": "S4",
+      "tags": [
+       "wrong_location"
+      ],
+      "directory_id": "syn-s4-2:2"
+     }
+    },
+    {
+     "key": "S4-11",
+     "first_name": "Mia",
+     "last_name": "Hoffmann",
+     "title": "Marketing Manager",
+     "location": "Frankfurt, Germany",
+     "department": null,
+     "management_level": null,
+     "years_experience": "6 to 10 years",
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Band only partly inside the 3-8 range",
+      "pool": "S4",
+      "tags": [
+       "experience_band_partial"
+      ],
+      "directory_id": "syn-s4-2:3"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s4-3",
+   "name": "Rheinwerk Consumer",
+   "leads": [
+    {
+     "key": "S4-03",
+     "first_name": "Jonas",
+     "last_name": "Weber",
+     "title": "Product Marketing Manager",
+     "location": "Hamburg, Germany",
+     "department": null,
+     "management_level": null,
+     "years_experience": 4,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Product marketing manager is a marketing manager variant",
+      "pool": "S4",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-s4-3:0"
+     }
+    },
+    {
+     "key": "S4-06",
+     "first_name": "Manon",
+     "last_name": "Petit",
+     "title": "Marketing Manager",
+     "location": "Lyon, France",
+     "department": null,
+     "management_level": null,
+     "years_experience": 1,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "1 year is below the 3-year minimum",
+      "pool": "S4",
+      "tags": [
+       "experience_fail"
+      ],
+      "directory_id": "syn-s4-3:1"
+     }
+    },
+    {
+     "key": "S4-09",
+     "first_name": "Anna",
+     "last_name": "Becker",
+     "title": "Sales Manager",
+     "location": "Berlin, Germany",
+     "department": null,
+     "management_level": null,
+     "years_experience": 5,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Sales, not marketing",
+      "pool": "S4",
+      "tags": [
+       "wrong_role"
+      ],
+      "directory_id": "syn-s4-3:2"
+     }
+    },
+    {
+     "key": "S4-12",
+     "first_name": "Paul",
+     "last_name": "Richter",
+     "title": "Marketing Manager",
+     "location": "Berlin, Germany",
+     "department": null,
+     "management_level": null,
+     "years_experience": null,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Experience not supplied",
+      "pool": "S4",
+      "tags": [
+       "unknown_field"
+      ],
+      "directory_id": "syn-s4-3:3"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s5-1",
+   "name": "Saffron Fintech",
+   "leads": [
+    {
+     "key": "S5-01",
+     "first_name": "Rohan",
+     "last_name": "Kapoor",
+     "title": "Founder & CEO",
+     "location": "Bengaluru, Karnataka, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 12,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Founder and CEO in India",
+      "pool": "S5",
+      "tags": [
+       "clear"
+      ],
+      "directory_id": "syn-s5-1:0"
+     }
+    },
+    {
+     "key": "S5-05",
+     "first_name": "Sanjay",
+     "last_name": "Bose",
+     "title": "Managing Director & Founder",
+     "location": "Kolkata, West Bengal, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 18,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Founder in the title, in India",
+      "pool": "S5",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-s5-1:1"
+     }
+    },
+    {
+     "key": "S5-09",
+     "first_name": "Arnav",
+     "last_name": "Gupta",
+     "title": "Chief of Staff to the CEO",
+     "location": "Hyderabad, Telangana, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 6,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Reports to the CEO; not a CEO",
+      "pool": "S5",
+      "tags": [
+       "trap",
+       "wrong_role"
+      ],
+      "directory_id": "syn-s5-1:2"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s5-2",
+   "name": "Kaveri Health",
+   "leads": [
+    {
+     "key": "S5-02",
+     "first_name": "Ananya",
+     "last_name": "Iyer",
+     "title": "Co-Founder",
+     "location": "Mumbai, Maharashtra, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 9,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Co-founder; Mumbai is in India",
+      "pool": "S5",
+      "tags": [
+       "title_variant",
+       "location_inside_country"
+      ],
+      "directory_id": "syn-s5-2:0"
+     }
+    },
+    {
+     "key": "S5-06",
+     "first_name": "Meera",
+     "last_name": "Nair",
+     "title": "CEO",
+     "location": "Singapore",
+     "department": null,
+     "management_level": null,
+     "years_experience": 15,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Located in Singapore",
+      "pool": "S5",
+      "tags": [
+       "wrong_location"
+      ],
+      "directory_id": "syn-s5-2:1"
+     }
+    },
+    {
+     "key": "S5-10",
+     "first_name": "Brian",
+     "last_name": "Miller",
+     "title": "CEO",
+     "location": "Indianapolis, Indiana, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 22,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Indiana, United States, not India",
+      "pool": "S5",
+      "tags": [
+       "trap",
+       "wrong_location"
+      ],
+      "directory_id": "syn-s5-2:2"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s5-3",
+   "name": "Indus Freight",
+   "leads": [
+    {
+     "key": "S5-03",
+     "first_name": "Vikram",
+     "last_name": "Desai",
+     "title": "Chief Executive Officer",
+     "location": "Pune, Maharashtra, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 20,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "CEO spelled out, in India",
+      "pool": "S5",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-s5-3:0"
+     }
+    },
+    {
+     "key": "S5-07",
+     "first_name": "Aditya",
+     "last_name": "Rao",
+     "title": "Founder",
+     "location": "London, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 10,
+     "headline": "Founder building for India from London",
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Located in the UK; the company being Indian does not count",
+      "pool": "S5",
+      "tags": [
+       "wrong_location"
+      ],
+      "directory_id": "syn-s5-3:1"
+     }
+    },
+    {
+     "key": "S5-11",
+     "first_name": "Pooja",
+     "last_name": "Reddy",
+     "title": "Product Manager",
+     "location": "Bengaluru, Karnataka, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 8,
+     "headline": "Product Manager | Former founder of a D2C brand",
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Current role is product manager; founding was in the past",
+      "pool": "S5",
+      "tags": [
+       "trap",
+       "wrong_role"
+      ],
+      "directory_id": "syn-s5-3:2"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-s5-4",
+   "name": "Monsoon Labs",
+   "leads": [
+    {
+     "key": "S5-04",
+     "first_name": "Neha",
+     "last_name": "Sharma",
+     "title": "Founder",
+     "location": "Delhi NCR",
+     "department": null,
+     "management_level": null,
+     "years_experience": 7,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Delhi NCR is in India; no country written",
+      "pool": "S5",
+      "tags": [
+       "location_no_country"
+      ],
+      "directory_id": "syn-s5-4:0"
+     }
+    },
+    {
+     "key": "S5-08",
+     "first_name": "Kavya",
+     "last_name": "Menon",
+     "title": "Founder's Office Associate",
+     "location": "Bengaluru, Karnataka, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 2,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Works in the founder office; not a founder",
+      "pool": "S5",
+      "tags": [
+       "trap",
+       "wrong_role"
+      ],
+      "directory_id": "syn-s5-4:1"
+     }
+    },
+    {
+     "key": "S5-12",
+     "first_name": "Farhan",
+     "last_name": "Ali",
+     "title": "Founder & Consultant",
+     "location": "Chennai, Tamil Nadu, India",
+     "department": null,
+     "management_level": null,
+     "years_experience": 11,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Founder of a one-person consultancy; may not be a target",
+      "pool": "S5",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-s5-4:2"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-h1-1",
+   "name": "Wattle Health Network",
+   "leads": [
+    {
+     "key": "H1-01",
+     "first_name": "Jack",
+     "last_name": "Thompson",
+     "title": "Registered Nurse",
+     "location": "Melbourne, Victoria, Australia",
+     "department": null,
+     "management_level": null,
+     "years_experience": 6,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Nurse in Australia outside Sydney",
+      "pool": "H1",
+      "tags": [
+       "clear"
+      ],
+      "directory_id": "syn-h1-1:0"
+     }
+    },
+    {
+     "key": "H1-03",
+     "first_name": "Liam",
+     "last_name": "O'Connor",
+     "title": "Enrolled Nurse",
+     "location": "Canberra, Australian Capital Territory, Australia",
+     "department": null,
+     "management_level": null,
+     "years_experience": 3,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Enrolled nurse is a nursing role",
+      "pool": "H1",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-h1-1:1"
+     }
+    },
+    {
+     "key": "H1-05",
+     "first_name": "Noah",
+     "last_name": "Wilson",
+     "title": "Registered Nurse",
+     "location": "Parramatta, New South Wales, Australia",
+     "department": null,
+     "management_level": null,
+     "years_experience": 5,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Parramatta is in Greater Sydney",
+      "pool": "H1",
+      "tags": [
+       "excluded_location",
+       "trap"
+      ],
+      "directory_id": "syn-h1-1:2"
+     }
+    },
+    {
+     "key": "H1-07",
+     "first_name": "Harper",
+     "last_name": "King",
+     "title": "Healthcare Recruiter (Nursing)",
+     "location": "Adelaide, South Australia, Australia",
+     "department": null,
+     "management_level": null,
+     "years_experience": 4,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Recruits nurses; not a nurse",
+      "pool": "H1",
+      "tags": [
+       "trap",
+       "wrong_role"
+      ],
+      "directory_id": "syn-h1-1:3"
+     }
+    },
+    {
+     "key": "H1-09",
+     "first_name": "Oscar",
+     "last_name": "Scott",
+     "title": "Nursing Unit Manager",
+     "location": "Perth, Western Australia, Australia",
+     "department": null,
+     "management_level": null,
+     "years_experience": 15,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Manages nurses; may or may not count as a nurse",
+      "pool": "H1",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-h1-1:4"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-h1-2",
+   "name": "Coastal Care Partners",
+   "leads": [
+    {
+     "key": "H1-02",
+     "first_name": "Ruby",
+     "last_name": "Walker",
+     "title": "Nurse Practitioner",
+     "location": "Brisbane, Queensland, Australia",
+     "department": null,
+     "management_level": null,
+     "years_experience": 11,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Nurse variant outside Sydney",
+      "pool": "H1",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-h1-2:0"
+     }
+    },
+    {
+     "key": "H1-04",
+     "first_name": "Charlotte",
+     "last_name": "Harris",
+     "title": "Registered Nurse",
+     "location": "Sydney, New South Wales, Australia",
+     "department": null,
+     "management_level": null,
+     "years_experience": 8,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "In Sydney, which is excluded",
+      "pool": "H1",
+      "tags": [
+       "excluded_location"
+      ],
+      "directory_id": "syn-h1-2:1"
+     }
+    },
+    {
+     "key": "H1-06",
+     "first_name": "Isla",
+     "last_name": "Morgan",
+     "title": "Registered Nurse",
+     "location": "Auckland, New Zealand",
+     "department": null,
+     "management_level": null,
+     "years_experience": 7,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "New Zealand, not Australia",
+      "pool": "H1",
+      "tags": [
+       "wrong_location"
+      ],
+      "directory_id": "syn-h1-2:2"
+     }
+    },
+    {
+     "key": "H1-08",
+     "first_name": "Ella",
+     "last_name": "Young",
+     "title": "Student Nurse",
+     "location": "Hobart, Tasmania, Australia",
+     "department": null,
+     "management_level": null,
+     "years_experience": 0,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Still a student",
+      "pool": "H1",
+      "tags": [
+       "trap",
+       "experience_fail"
+      ],
+      "directory_id": "syn-h1-2:3"
+     }
+    },
+    {
+     "key": "H1-10",
+     "first_name": "Amelia",
+     "last_name": "Green",
+     "title": "Registered Nurse",
+     "location": null,
+     "department": null,
+     "management_level": null,
+     "years_experience": 9,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Location not supplied",
+      "pool": "H1",
+      "tags": [
+       "unknown_field"
+      ],
+      "directory_id": "syn-h1-2:4"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-h2-1",
+   "name": "Quillfeather AI",
+   "leads": [
+    {
+     "key": "H2-01",
+     "first_name": "Ava",
+     "last_name": "Robinson",
+     "title": "Data Scientist",
+     "location": "Austin, Texas, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 2,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Data scientist in the US with 2 years",
+      "pool": "H2",
+      "tags": [
+       "clear"
+      ],
+      "directory_id": "syn-h2-1:0"
+     }
+    },
+    {
+     "key": "H2-03",
+     "first_name": "Mila",
+     "last_name": "Novak",
+     "title": "Data Scientist",
+     "location": "New York, New York, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 3,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "In New York City, which is excluded",
+      "pool": "H2",
+      "tags": [
+       "excluded_location"
+      ],
+      "directory_id": "syn-h2-1:1"
+     }
+    },
+    {
+     "key": "H2-05",
+     "first_name": "Henry",
+     "last_name": "Clark",
+     "title": "Senior Data Scientist",
+     "location": "Seattle, Washington, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 9,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "9 years exceeds the 4-year maximum",
+      "pool": "H2",
+      "tags": [
+       "experience_fail"
+      ],
+      "directory_id": "syn-h2-1:2"
+     }
+    },
+    {
+     "key": "H2-07",
+     "first_name": "Oliver",
+     "last_name": "Evans",
+     "title": "Data Scientist",
+     "location": "London, England, United Kingdom",
+     "department": null,
+     "management_level": null,
+     "years_experience": 2,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Not in the US or Canada",
+      "pool": "H2",
+      "tags": [
+       "wrong_location"
+      ],
+      "directory_id": "syn-h2-1:3"
+     }
+    },
+    {
+     "key": "H2-09",
+     "first_name": "William",
+     "last_name": "Tran",
+     "title": "Machine Learning Engineer",
+     "location": "Vancouver, British Columbia, Canada",
+     "department": null,
+     "management_level": null,
+     "years_experience": 3,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Closely related role; may or may not count",
+      "pool": "H2",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-h2-1:4"
+     }
+    },
+    {
+     "key": "H2-11",
+     "first_name": "Leo",
+     "last_name": "Gauthier",
+     "title": "Data Science Intern",
+     "location": "Montreal, Quebec, Canada",
+     "department": null,
+     "management_level": null,
+     "years_experience": 0.5,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Intern; experience fits but the role may not",
+      "pool": "H2",
+      "tags": [
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-h2-1:5"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  },
+  {
+   "company_id": "syn-h2-2",
+   "name": "Granite Peak Insurance",
+   "leads": [
+    {
+     "key": "H2-02",
+     "first_name": "Ethan",
+     "last_name": "Leblanc",
+     "title": "Junior Data Scientist",
+     "location": "Toronto, Ontario, Canada",
+     "department": null,
+     "management_level": null,
+     "years_experience": 1,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "match",
+      "reason": "Junior is fine because the request sets a maximum",
+      "pool": "H2",
+      "tags": [
+       "title_variant"
+      ],
+      "directory_id": "syn-h2-2:0"
+     }
+    },
+    {
+     "key": "H2-04",
+     "first_name": "Jacob",
+     "last_name": "Stein",
+     "title": "Data Scientist",
+     "location": "Brooklyn, New York, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 2,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Brooklyn is part of New York City",
+      "pool": "H2",
+      "tags": [
+       "excluded_location",
+       "trap"
+      ],
+      "directory_id": "syn-h2-2:1"
+     }
+    },
+    {
+     "key": "H2-06",
+     "first_name": "Sophia",
+     "last_name": "Turner",
+     "title": "Data Analyst",
+     "location": "Chicago, Illinois, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 2,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "no_match",
+      "reason": "Analyst, not data scientist",
+      "pool": "H2",
+      "tags": [
+       "wrong_role"
+      ],
+      "directory_id": "syn-h2-2:2"
+     }
+    },
+    {
+     "key": "H2-08",
+     "first_name": "Lily",
+     "last_name": "Adams",
+     "title": "Data Scientist",
+     "location": "Buffalo, New York, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": 3,
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "New York State but not the city; depends on what \"New York\" meant",
+      "pool": "H2",
+      "tags": [
+       "excluded_location",
+       "title_ambiguous"
+      ],
+      "directory_id": "syn-h2-2:3"
+     }
+    },
+    {
+     "key": "H2-10",
+     "first_name": "Zara",
+     "last_name": "Hughes",
+     "title": "Data Scientist",
+     "location": "Boston, Massachusetts, United States",
+     "department": null,
+     "management_level": null,
+     "years_experience": "3 to 5 years",
+     "headline": null,
+     "summary": null,
+     "skills": null,
+     "expected": {
+      "label": "borderline",
+      "reason": "Band only partly within the 4-year maximum",
+      "pool": "H2",
+      "tags": [
+       "experience_band_partial"
+      ],
+      "directory_id": "syn-h2-2:4"
+     }
+    }
+   ],
+   "industry": null,
+   "size": null,
+   "location": null,
+   "country": null,
+   "description": null,
+   "provenance": "synthetic_scenario"
+  }
+ ]
+}
