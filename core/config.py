@@ -156,6 +156,11 @@ class JevSettings:
     concurrency: int
     match_threshold: float
     input_cost_per_million: float
+    # 'llm': leads Jev cannot judge are decided by the configured LLM instead of failing. 'none': they fail.
+    fallback: str = 'llm'
+    # After this many consecutive Jev failures in a run, stop calling Jev and send the rest to the fallback.
+    breaker_failures: int = 5
+    max_attempts: int = 3
     issues: tuple[str, ...] = ()
     provider: str = 'typesafe'
 
@@ -188,6 +193,10 @@ def load_jev_settings() -> JevSettings:
     # The docs give the host; older values ending in /v1 are accepted.
     base_url = (value('JEV_BASE_URL') or value('TYPESAFE_BASE_URL') or 'https://api.typesafe.ai').rstrip('/')
     base_url = base_url[:-3] if base_url.endswith('/v1') else base_url
+    fallback = value('JEV_FALLBACK', 'llm').lower()
+    if fallback not in {'llm', 'none'}:
+        issues.append('JEV_FALLBACK must be llm or none.')
+        fallback = 'llm'
     return JevSettings(
         api_key=key, base_url=base_url,
         # Pin a versioned model so probability thresholds stay meaningful (jev-latest moves).
@@ -197,6 +206,9 @@ def load_jev_settings() -> JevSettings:
         match_threshold=number('JEV_MATCH_THRESHOLD', 0.5, 0.05, 0.95),
         # Published price: $0.042 per million input tokens; output tokens are free.
         input_cost_per_million=number('JEV_INPUT_COST_PER_MILLION', 0.042, 0, 1000),
+        fallback=fallback,
+        breaker_failures=int(number('JEV_BREAKER_FAILURES', 5, 1, 100)),
+        max_attempts=int(number('JEV_MAX_ATTEMPTS', 3, 1, 6)),
         issues=tuple(issues),
     )
 

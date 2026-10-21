@@ -83,15 +83,34 @@ Reading: accuracy is similar; JEV is more consistent and stricter about job func
 
 Limits: one target and one role family; 200 people labelled by one reviewer; department, seniority and experience were absent from the data, so those questions were not exercised; the JEV question rules were written with this target in view, so results may be optimistic. Raw results are in the ignored `data/eval_*.json`. The internal report with speed and cost estimates is in the ignored `docs/reports/` and is shared directly, not through Git.
 
-Known gaps in the JEV path: the `role_match` rules are written mainly for leadership roles; exclusion values can carry words such as "excluding" from interpretation; a failed JEV call marks the lead as failed with no LLM fallback.
+### Gap fixes and wider evaluation (21 October 2026)
+
+The three gaps found on 19 October are fixed in `jev-lead-gates-v2`:
+
+- **Role rules for any role family.** Variants, different disciplines, people who recruit for or support a role, students and interns, leadership versus individual-contributor targets, multi-role titles and promotional title text are covered by general rules. Every yes/no question now states what counts as yes and as no (`criteria.true` / `criteria.false`, per the TypeSafe docs).
+- **Place cleanup.** Negation words copied into place values are removed in `search_validation.py` and recorded as `cleaned_values`.
+- **Resilience and LLM fallback.** JEV calls retry 429, 529, other 5xx and timeouts with jittered backoff, reuse one connection pool per run, and reject malformed answers. A lead JEV cannot judge is decided by the LLM and labelled `llm_fallback`; a per-run circuit breaker stops calling JEV during an outage.
+
+Live results with the final rules, labels drafted by Claude and pending business review, borderline people excluded from accuracy:
+
+| Set | JEV | LLM (DeepSeek) |
+|---|---|---|
+| Synthetic, 5 development scenarios (50 decided) | 100% | 100% |
+| Synthetic, 2 hold-out scenarios (15 decided) | 100% | 86.7% (2 wrong inclusions) |
+| Real Oppora live search, 6 scenarios (111 decided) | 99.1% (0 wrong inclusions, 1 miss) | 93.7% (7 wrong inclusions) |
+| Original 200-person target, two runs | 99.4%, 99.4%; 99% identical decisions | not re-run (LLM path unchanged) |
+| Borderline people selected (real set) | 13 of 39 | 32 of 39 |
+| Forced JEV outage (14 people) | 14 decided by LLM fallback, 0 failed | — |
+
+The pattern from 19 October holds across role families: JEV is strict and the LLM is generous. Every LLM error was an adjacent role accepted with a mid-range score (HR managers for HR directors, analysts for data scientists, a pre-sales architect, a student nurse). JEV's misses were titles whose role wording was unusual ("Manager data scientist", a CEO title carrying a slogan). The real-world set came from 6 Oppora live searches (36 credits) and is kept out of Git; department, seniority and experience are not returned by live search, so those questions are exercised only by the synthetic set. Tests also ran 21 offline unit tests and a UI check of the fallback labels.
 
 ### Next steps for lead filter-and-score
 
-1. Keep these documents in line with the code (this update).
-2. Build a wider labelled test set covering other role families, experience limits, exclusions, explicit department/seniority, blank fields and tricky titles, with a hold-out set nobody tunes against. Labels need business review. No model calls needed.
-3. User decisions: how borderline people should be treated (this sets the threshold), and pass/fail criteria agreed before re-testing.
-4. Fix the known gaps above.
-5. With user authorization, re-run both paths on the wider set for quality, consistency, cost and latency.
+1. ~~Keep these documents in line with the code.~~ Done.
+2. ~~Build a wider labelled test set.~~ Drafted: `datasets/lead_scoring_scenarios.json` (synthetic, in Git) and a gitignored real-world set.
+3. User decisions, still open: how borderline people should be treated (this sets the threshold), the labels in [LEAD_SCORING_TEST_SET.md](LEAD_SCORING_TEST_SET.md), and pass/fail criteria.
+4. ~~Fix the known gaps.~~ Done, including LLM fallback.
+5. ~~Re-run both paths on the wider set.~~ Done once; repeat after labels are reviewed and on larger real samples (1,000+ people).
 6. If the criteria are met: shadow mode, then make JEV the default for this decision with LLM fallback, keeping the per-run choice.
 
 Phase 3 production foundations remain required either way; JEV's one-call-per-lead pattern makes shared provider quotas more important, not less. Preserve public scoring behavior while introducing the infrastructure in small steps. Production integration remains separate from modifying this standalone project.

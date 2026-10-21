@@ -2,9 +2,11 @@
 import asyncio
 import hashlib
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from uuid import uuid4
+
+import httpx
 
 from models.lead_batch import LeadFilterResult, OpporaLeadFilterResult
 from . import ledger, repository
@@ -125,7 +127,7 @@ def company_batches(run, size):
             yield number, items[offset:offset + size]
 
 
-async def score_batch(run, settings, number, chunk):
+async def score_batch(run, settings, number, chunk, fallback=False):
     first = chunk[0]['person']
     version = run.get('prompt_version', 'oppora-filter-v1')
     filters, objective = run['targeting']['filters'], run['targeting']['objective'] or None
@@ -156,29 +158,35 @@ async def score_batch(run, settings, number, chunk):
         if trace['status'] == 'failed':
             item.update(status='failed', error=trace['error'])
         elif identifier in scores:
-            item.update(status='matched', score=scores[identifier], priority_tier=tiers.get(identifier))
+            item.update(status='matched', score=scores[identifier], priority_tier=tiers.get(identifier), error=None)
         else:
-            item['status'] = 'not_selected'
+            item.update(status='not_selected', error=None)
         item['call_id'] = trace['id']
+        item['decided_by'] = 'llm_fallback' if fallback else 'llm'
     failed = trace['status'] == 'failed'
+    links = {'run_id': run['id'], 'company_id': first['company_id'], 'batch': number}
+    if fallback:
+        links['fallback_for'] = 'jev'
+        trace['purpose'] = 'Filter and score people (fallback for Jev)'
     ledger.record_trace(settings, trace, 'lead_filter_score', items_in=len(chunk),
                         decisions={'selected': 0 if failed else len(scores),
                                    'not_selected': 0 if failed else len(chunk) - len(scores),
                                    'failed': len(chunk) if failed else 0},
-                        links={'run_id': run['id'], 'company_id': first['company_id'], 'batch': number})
+                        links=links)
     run['traces'].append(trace)
     update_counts(run)
     repository.save('run', run)
 
 
-async def score_lead_with_jev(run, jev_settings, item):
-    decision, trace = await judge_lead(jev_settings, item['person'], run['targeting'])
+async def score_lead_with_jev(run, jev_settings, item, client=None):
+    """Returns True when Jev decided the lead. On failure the lead stays pending for the fallback."""
+    decision, trace = await judge_lead(jev_settings, item['person'], run['targeting'], client)
     if decision is None:
-        item.update(status='failed', error=trace['error'])
+        item.update(jev_error=trace['error'], jev_error_code=trace.get('error_code'))
     elif decision['selected']:
-        item.update(status='matched', score=decision['score'], jev=decision)
+        item.update(status='matched', score=decision['score'], jev=decision, decided_by='jev')
     else:
-        item.update(status='not_selected', jev=decision)
+        item.update(status='not_selected', jev=decision, decided_by='jev')
     item['call_id'] = trace['id']
     ledger.record_trace(jev_settings, trace, 'lead_filter_score', items_in=1,
                         decisions={'selected': int(bool(decision and decision['selected'])),
@@ -187,29 +195,83 @@ async def score_lead_with_jev(run, jev_settings, item):
                         links={'run_id': run['id'], 'lead_id': item['person']['id']})
     run['traces'].append(trace)
     update_counts(run)
+    return decision is not None
 
 
-async def execute_jev_run(run, jev_settings):
-    """One Jev query per lead (Jev answers typed questions about one state at a time)."""
-    run['batching'] = {'per': 'lead', 'concurrency': jev_settings.concurrency,
-                       'match_threshold': jev_settings.match_threshold}
-    limit = asyncio.Semaphore(jev_settings.concurrency)
-    done = 0
+async def run_fallback(run, settings, items):
+    """Decide leads Jev could not judge with the configured LLM, batched per company like an LLM run."""
+    groups = defaultdict(list)
+    for item in items:
+        groups[item['person']['company_id']].append(item)
+    limit = asyncio.Semaphore(settings.lead_batch_concurrency)
 
-    async def bounded(item):
-        nonlocal done
+    async def bounded(number, chunk):
         async with limit:
             try:
-                await score_lead_with_jev(run, jev_settings, item)
+                await score_batch(run, settings, number, chunk, fallback=True)
             except Exception:
-                if item['status'] == 'pending':
-                    item.update(status='failed', error='Processing this lead failed. Retry it.')
+                for item in chunk:
+                    if item['status'] == 'pending':
+                        item.update(status='failed', error='Jev and the fallback LLM both failed for this lead. Retry it.',
+                                    decided_by='llm_fallback')
                 update_counts(run)
+
+    await asyncio.gather(*(bounded(number, chunk[offset:offset + settings.lead_batch_size])
+                           for chunk in groups.values()
+                           for number, offset in enumerate(range(0, len(chunk), settings.lead_batch_size), start=1)))
+
+
+async def execute_jev_run(run, jev_settings, settings=None):
+    """One Jev query per lead, then the LLM for any lead Jev could not judge.
+
+    A circuit breaker stops calling Jev after `breaker_failures` consecutive failures, so an outage
+    costs a few retried calls instead of one slow failure per lead.
+    """
+    use_fallback = jev_settings.fallback == 'llm' and settings is not None
+    run['batching'] = {'per': 'lead', 'concurrency': jev_settings.concurrency,
+                       'match_threshold': jev_settings.match_threshold,
+                       'fallback': 'llm' if use_fallback else 'none'}
+    limit = asyncio.Semaphore(jev_settings.concurrency)
+    breaker = {'consecutive': 0, 'open': False}
+    unresolved = []
+    done = 0
+
+    async def bounded(item, client):
+        nonlocal done
+        async with limit:
+            if breaker['open']:
+                item.update(jev_error='Jev was skipped after repeated failures in this run.', jev_error_code='circuit_open')
+                unresolved.append(item)
+                return
+            try:
+                ok = await score_lead_with_jev(run, jev_settings, item, client)
+            except Exception:
+                item.update(jev_error='Processing this lead with Jev failed.', jev_error_code='internal_error')
+                ok = False
+            if ok:
+                breaker['consecutive'] = 0
+            else:
+                unresolved.append(item)
+                breaker['consecutive'] += 1
+                if breaker['consecutive'] >= jev_settings.breaker_failures:
+                    breaker['open'] = True
             done += 1
             if done % 10 == 0:
                 repository.save('run', run)
 
-    await asyncio.gather(*(bounded(item) for item in run['results']))
+    async with httpx.AsyncClient(timeout=jev_settings.timeout_seconds, follow_redirects=False,
+                                 limits=httpx.Limits(max_connections=jev_settings.concurrency)) as client:
+        await asyncio.gather(*(bounded(item, client) for item in run['results']))
+    reasons = Counter(item.get('jev_error_code') or 'unknown' for item in unresolved)
+    run['fallback'] = {'enabled': use_fallback, 'leads': len(unresolved) if use_fallback else 0,
+                       'reasons': dict(reasons), 'circuit_opened': breaker['open']}
+    if unresolved and use_fallback:
+        repository.save('run', run)
+        await run_fallback(run, settings, unresolved)
+    for item in unresolved:
+        if item['status'] == 'pending':
+            item.update(status='failed', error=item.get('jev_error') or 'Jev could not judge this lead.')
+    update_counts(run)
 
 
 async def execute_run(run, settings, jev_settings=None):
@@ -218,7 +280,7 @@ async def execute_run(run, settings, jev_settings=None):
             run['status'] = 'running'
             repository.save('run', run)
             try:
-                await execute_jev_run(run, jev_settings)
+                await execute_jev_run(run, jev_settings, settings)
                 run['status'] = 'failed' if run['failed'] == run['total'] else 'partial' if run['failed'] else 'completed'
             except Exception:
                 for item in run['results']:
@@ -266,3 +328,4 @@ def update_counts(run):
     run['processed'] = sum(item['status'] != 'pending' for item in run['results'])
     run['matched'] = sum(item['status'] == 'matched' for item in run['results'])
     run['failed'] = sum(item['status'] == 'failed' for item in run['results'])
+    run['fallback_count'] = sum(item.get('decided_by') == 'llm_fallback' for item in run['results'])

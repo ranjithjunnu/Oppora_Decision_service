@@ -37,11 +37,14 @@ export interface LeadResult {
   person: ScoringPerson; status: 'pending' | 'matched' | 'not_selected' | 'failed';
   score: number | null; error: string | null; missing_facts: string[];
   call_id: string | null; explanation: LeadExplanation | null; jev?: JevDecision;
+  /** Who made the decision. 'llm_fallback' means Jev could not judge the lead and the LLM decided it. */
+  decided_by?: 'llm' | 'jev' | 'llm_fallback'; jev_error?: string | null;
 }
 export interface RunSummary {
   id: string; created_at: string; status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'interrupted';
   total: number; processed: number; matched: number; failed: number; targeting_description: string; model: string;
-  decision_model?: DecisionModel;
+  decision_model?: DecisionModel; fallback_count?: number;
+  fallback?: { enabled: boolean; leads: number; reasons: Record<string, number>; circuit_opened: boolean };
   source_list?: { id: string; name: string; version: number; search_id: string | null } | null;
 }
 

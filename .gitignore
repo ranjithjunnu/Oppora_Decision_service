@@ -49,6 +49,7 @@ data/
 
 # Real people fetched from Oppora for internal testing
 datasets/oppora_live_sample.json
+datasets/oppora_live_scenarios.json
 
 # Reversible migration snapshots
 .backups/

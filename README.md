@@ -37,9 +37,21 @@ Only the **lead filter-and-score** step offers a choice. `POST /v1/lead-scoring/
 | Score | Written by the LLM | Computed by code from JEV's 4-level fit answer |
 | Why a lead failed | Not stated | The weakest requirement and each gate's probability |
 
-On the JEV path, code builds the questions: `build_questions` turns each filter the target actually uses (role, location, excluded location, department, seniority, experience) into one yes/no question, plus an overall fit rating. JEV only answers; code decides. JEV failures mark the lead as failed and there is no automatic LLM fallback yet. `JEV_MODEL` is pinned (`jev-1.13.0`) so the threshold keeps its meaning.
+On the JEV path, code builds the questions: `build_questions` turns each filter the target actually uses (role, location, excluded location, department, seniority, experience) into one yes/no question with explicit yes/no criteria, plus an overall fit rating. The rules are written for any role family, not one target. JEV only answers; code decides. `JEV_MODEL` is pinned (`jev-1.13.0`) so the threshold keeps its meaning.
 
-**Evidence so far (19 October 2026, local prototype):** both paths were run on 200 hand-labelled people for one sales-leadership target in the US, Canada or UK. Accuracy was similar (LLM 99.4–100%, JEV 98.9–99.4%). JEV made no wrong inclusions but missed 1–2 true matches, gave the same decision on 99.5% of re-runs (LLM 97–97.5%), and selected far fewer borderline people (4 of 19 versus 12–15). This is one target, labelled by one reviewer, without department, seniority or experience data, so it does not establish general quality. Saved results are in the ignored `data/eval_*.json`; the internal report, including speed and cost estimates, is in the ignored `docs/reports/` and is shared directly rather than through Git. See [SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) for the next steps.
+**When JEV fails, the LLM decides.** Each JEV call is retried on 429, 529, other 5xx and timeouts (`JEV_MAX_ATTEMPTS`, backoff with jitter, `retry-after` honoured). A lead JEV still cannot judge is scored by the configured LLM, batched per company like an LLM run, and labelled `decided_by: "llm_fallback"` with the JEV error; the run shows how many leads fell back and why. After `JEV_BREAKER_FAILURES` consecutive failures the run stops calling JEV and sends the remaining leads straight to the LLM; because calls run in parallel, up to about `JEV_BREAKER_FAILURES + JEV_CONCURRENCY` calls can be attempted first. `JEV_FALLBACK=none` turns the fallback off. A missing JEV key is still rejected up front with HTTP 503 rather than silently falling back.
+
+Offline tests for questions, decisions, retries, place cleanup and the fallback make no network calls:
+
+```powershell
+.\venv\Scripts\python.exe -m unittest discover -s tests -t .
+```
+
+**Evidence so far (19 October 2026, local prototype):** both paths were run on 200 hand-labelled people for one sales-leadership target in the US, Canada or UK. Accuracy was similar (LLM 99.4–100%, JEV 98.9–99.4%). JEV made no wrong inclusions but missed 1–2 true matches, gave the same decision on 99.5% of re-runs (LLM 97–97.5%), and selected far fewer borderline people (4 of 19 versus 12–15). That was one target, labelled by one reviewer, without department, seniority or experience data.
+
+**Wider check (21 October 2026, `jev-lead-gates-v2`):** 7 synthetic scenarios (83 people, including a 2-scenario hold-out) and 6 real-world scenarios (150 people from Oppora live search) across engineers, HR, founders, nurses, sales and data roles. JEV was 100% accurate on the synthetic set including the hold-out, and 99.1% on the real set (no wrong inclusions, one miss). The LLM was 96.9% and 93.7%, with 2 and 7 wrong inclusions, mostly adjacent roles (HR managers for HR directors, analysts for data scientists, a student nurse). Re-running the original 200-person target with the new rules gave JEV 99.4% twice with 99% identical decisions. A forced JEV outage completed with every lead decided by the LLM fallback and none failed. Labels are Claude's draft and still need business review; borderline people are excluded from accuracy. See [LEAD_SCORING_TEST_SET.md](docs/LEAD_SCORING_TEST_SET.md).
+
+Saved results are in the ignored `data/eval_*.json`; the internal report, including speed and cost estimates, is in the ignored `docs/reports/` and is shared directly rather than through Git. See [SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) for the next steps.
 
 ## AI Admin: where decisions happen
 

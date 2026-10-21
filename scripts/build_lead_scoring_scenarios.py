@@ -245,8 +245,14 @@ def review_sheet(data):
             years = '—' if lead['years_experience'] is None else lead['years_experience']
             label = {M: 'match', N: 'no match', B: '**borderline**'}[lead['expected']['label']]
             lines.append(f"| {key} | {lead['title']} | {lead['location'] or '—'} | {years} | {meta} | {label} | {lead['expected']['reason']} |")
-    lines += ['', '## Using it later (needs authorization)', '',
-              '`scripts/eval_lead_scoring.py` currently scores one hard-coded query against the real Oppora sample. Running this set needs a small extension: create a target per scenario, score only that scenario\'s people, and report development and hold-out results separately. That run makes model calls and waits for your go-ahead.', '']
+    lines += ['', '## Running it', '',
+              'Start the backend with `DIRECTORY_FILE=lead_scoring_scenarios.json`, then run '
+              '`python scripts/eval_lead_scoring.py scenarios lead_scoring_scenarios.json <tag> jev` (or `llm`). '
+              'It creates a target per scenario, scores only that scenario\'s people, checks the interpreted filters against '
+              'the expected ones, and reports development and hold-out results separately in `data/eval_scen_<tag>.json`. '
+              'It makes model calls.', '',
+              'First results (21 October 2026, on these draft labels): JEV 100% on development and hold-out; '
+              'the LLM 100% on development and 86.7% on hold-out (it accepted the Student Nurse and the Data Analyst).', '']
     return '\n'.join(lines)
 
 

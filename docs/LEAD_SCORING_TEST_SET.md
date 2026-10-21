@@ -176,6 +176,8 @@ Expected filters: `titles=['Data Scientist'], countries=['United States', 'Canad
 | H2-10 | Data Scientist | Boston, Massachusetts, United States | 3 to 5 years | — | **borderline** | Band only partly within the 4-year maximum |
 | H2-11 | Data Science Intern | Montreal, Quebec, Canada | 0.5 | — | **borderline** | Intern; experience fits but the role may not |
 
-## Using it later (needs authorization)
+## Running it
 
-`scripts/eval_lead_scoring.py` currently scores one hard-coded query against the real Oppora sample. Running this set needs a small extension: create a target per scenario, score only that scenario's people, and report development and hold-out results separately. That run makes model calls and waits for your go-ahead.
+Start the backend with `DIRECTORY_FILE=lead_scoring_scenarios.json`, then run `python scripts/eval_lead_scoring.py scenarios lead_scoring_scenarios.json <tag> jev` (or `llm`). It creates a target per scenario, scores only that scenario's people, checks the interpreted filters against the expected ones, and reports development and hold-out results separately in `data/eval_scen_<tag>.json`. It makes model calls.
+
+First results (21 October 2026, on these draft labels): JEV 100% on development and hold-out; the LLM 100% on development and 86.7% on hold-out (it accepted the Student Nurse and the Data Analyst).

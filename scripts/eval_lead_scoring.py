@@ -6,8 +6,13 @@ Makes real LLM calls (about 200 per scoring run). Usage, with a backend running 
   python scripts/eval_lead_scoring.py score <tag> [llm|jev]  -> scores all 200 labelled people, saves data/eval_<tag>.json
   python scripts/eval_lead_scoring.py compare <tagA> <tagB>  -> stability between two saved runs
   python scripts/eval_lead_scoring.py explain <tag>          -> explanations for a few interesting people
+  python scripts/eval_lead_scoring.py scenarios <file> <tag> [llm|jev]
+      -> scores every scenario in datasets/<file> (e.g. lead_scoring_scenarios.json) against its own labels.
+         Start the backend with DIRECTORY_FILE=<file> first. Saves data/eval_scen_<tag>.json.
+Set EVAL_BASE to point at a backend other than http://127.0.0.1:8010.
 """
 import json
+import os
 import statistics
 import sys
 import time
@@ -16,9 +21,10 @@ from pathlib import Path
 
 import httpx
 
-BASE = 'http://127.0.0.1:8010'
+BASE = os.environ.get('EVAL_BASE', 'http://127.0.0.1:8010')
 ROOT = Path(__file__).resolve().parents[1]
-SAMPLE = json.loads((ROOT / 'datasets' / 'oppora_live_sample.json').read_text(encoding='utf-8'))
+SAMPLE_PATH = ROOT / 'datasets' / 'oppora_live_sample.json'
+SAMPLE = json.loads(SAMPLE_PATH.read_text(encoding='utf-8')) if SAMPLE_PATH.exists() else {'companies': []}
 ICP_QUERY = ('VP of Sales, Head of Sales, SDR Managers, Revenue Operations Managers and Founders '
              'in the United States, Canada or the United Kingdom')
 OBJECTIVE = 'We help sales teams replace manual outbound prospecting with an AI SDR agent'
@@ -107,7 +113,8 @@ def evaluate(run, expected):
         selected = item['status'] == 'matched'
         row = {'id': pid, 'name': label['name'], 'title': label['title'], 'location': label['location'],
                'pool': label['pool'], 'label': label['label'], 'reason': label['reason'],
-               'status': item['status'], 'score': item['score'], 'priority_tier': item.get('priority_tier')}
+               'status': item['status'], 'score': item['score'], 'priority_tier': item.get('priority_tier'),
+               'decided_by': item.get('decided_by')}
         if item.get('jev'):
             row['jev'] = {key: item['jev'][key] for key in ('gates', 'match_probability', 'weakest_requirement')}
         people.append(row)
@@ -143,6 +150,7 @@ def evaluate(run, expected):
         'score_histogram': dict(sorted(Counter((r['score'] // 10) * 10 for r in people if r['score'] is not None).items())),
         'priority_tier_values': dict(tiers),
         'per_pool': {pool: dict(counts) for pool, counts in sorted(per_pool.items())},
+        'fallback_leads': sum(r.get('decided_by') == 'llm_fallback' for r in people),
         'llm_calls': len(calls), 'failed_calls': sum(t['status'] == 'failed' for t in calls),
         'input_tokens': sum(t.get('input_tokens') or 0 for t in calls),
         'cached_input_tokens': sum(t.get('cached_input_tokens') or 0 for t in calls),
@@ -204,6 +212,100 @@ def explain(tag):
                           'explanation': item['explanation'] if item else run}, indent=1, ensure_ascii=False))
 
 
+def scenario_labels(data):
+    leads = {lead['key']: (lead, company) for company in data['companies'] for lead in company['leads']}
+    out = {}
+    for scenario in data['scenarios']:
+        out[scenario['id']] = {}
+        for key in scenario['lead_keys']:
+            lead, company = leads[key]
+            expected = lead['expected']
+            out[scenario['id']][expected['directory_id']] = {
+                'label': expected['label'], 'reason': expected['reason'], 'pool': scenario['id'],
+                'name': f"{lead['first_name']} {lead['last_name']}", 'title': lead['title'],
+                'location': lead['location'], 'company': company['name'], 'key': key}
+    return out
+
+
+def filter_differences(actual, expected):
+    """Expected filter values the interpreter missed or changed. Extra fields are reported too."""
+    differences = {}
+    for field, value in expected.items():
+        got = actual.get(field)
+        if isinstance(value, list):
+            if sorted(v.casefold() for v in got or []) != sorted(v.casefold() for v in value):
+                differences[field] = {'expected': value, 'got': got}
+        elif got != value:
+            differences[field] = {'expected': value, 'got': got}
+    for field, got in actual.items():
+        if field not in expected and got not in ([], None):
+            differences[field] = {'expected': None, 'got': got}
+    return differences
+
+
+def run_scenario(scenario, expected, tag, decision_model):
+    status, target = post('/v1/lead-scoring/targeting', {'description': scenario['query'], 'objective': ''})
+    if status != 200:
+        return {'id': scenario['id'], 'holdout': scenario['holdout'], 'query': scenario['query'],
+                'interpretation_error': target.get('detail'), 'people': len(expected)}
+    differences = filter_differences(target['filters'], scenario['expected_filters'])
+    status, lead_list = post('/v1/lead-scoring/lists', {'name': f"Eval {tag} {scenario['id']}",
+                                                       'lead_ids': list(expected), 'targeting_id': target['id']})
+    assert status == 201, lead_list
+    status, run = post(f"/v1/lead-scoring/lists/{lead_list['id']}/score",
+                       {'expected_version': lead_list['version'], 'targeting_id': target['id'],
+                        'decision_model': decision_model})
+    assert status == 202, run
+    started = time.perf_counter()
+    while run['status'] in {'queued', 'running'}:
+        time.sleep(2)
+        run = client.get(f"/v1/lead-scoring/runs/{run['id']}").json()
+    report = evaluate(run, expected)
+    report.update(id=scenario['id'], holdout=scenario['holdout'], query=scenario['query'], run_id=run['id'],
+                  run_status=run['status'], model=run['model'], prompt_version=run['prompt_version'],
+                  wall_seconds=round(time.perf_counter() - started, 1), filters=target['filters'],
+                  filter_differences=differences, cleaned_values=target.get('validation', {}).get('cleaned_values'),
+                  fallback=run.get('fallback'))
+    return report
+
+
+def combine(reports):
+    tp = sum(r['confusion']['TP'] for r in reports if 'confusion' in r)
+    fp = sum(r['confusion']['FP'] for r in reports if 'confusion' in r)
+    fn = sum(r['confusion']['FN'] for r in reports if 'confusion' in r)
+    tn = sum(r['confusion']['TN'] for r in reports if 'confusion' in r)
+    decided = tp + fp + fn + tn
+    return {'scenarios': len(reports), 'TP': tp, 'FP': fp, 'FN': fn, 'TN': tn,
+            'accuracy': round((tp + tn) / decided, 3) if decided else None,
+            'precision': round(tp / (tp + fp), 3) if tp + fp else None,
+            'recall': round(tp / (tp + fn), 3) if tp + fn else None,
+            'borderline_selected': sum(r.get('borderline_selected', 0) for r in reports),
+            'borderline_total': sum(r.get('borderline_total', 0) for r in reports),
+            'failed': sum(r.get('totals', {}).get('failed', 0) for r in reports),
+            'fallback_leads': sum(r.get('fallback_leads', 0) for r in reports),
+            'interpretation_errors': sum('interpretation_error' in r for r in reports),
+            'filter_mismatches': sum(bool(r.get('filter_differences')) for r in reports),
+            'wall_seconds': round(sum(r.get('wall_seconds', 0) for r in reports), 1),
+            'input_tokens': sum(r.get('input_tokens', 0) for r in reports)}
+
+
+def scenarios(file_name, tag, decision_model='llm'):
+    data = json.loads((ROOT / 'datasets' / file_name).read_text(encoding='utf-8'))
+    labels_by_scenario = scenario_labels(data)
+    reports = []
+    for scenario in data['scenarios']:
+        report = run_scenario(scenario, labels_by_scenario[scenario['id']], tag, decision_model)
+        reports.append(report)
+        brief = {key: report.get(key) for key in ('id', 'accuracy', 'precision', 'recall', 'confusion', 'borderline_selected',
+                                                   'borderline_total', 'fallback_leads', 'filter_differences', 'interpretation_error')}
+        print(json.dumps(brief, ensure_ascii=False), flush=True)
+    summary = {'tag': tag, 'file': file_name, 'decision_model': decision_model,
+               'development': combine([r for r in reports if not r['holdout']]),
+               'holdout': combine([r for r in reports if r['holdout']]), 'all': combine(reports), 'scenarios': reports}
+    (ROOT / 'data' / f'eval_scen_{tag}.json').write_text(json.dumps(summary, indent=1, ensure_ascii=False), encoding='utf-8')
+    print(json.dumps({key: summary[key] for key in ('development', 'holdout', 'all')}, indent=1))
+
+
 if __name__ == '__main__':
     command = sys.argv[1]
     if command == 'interpret':
@@ -214,3 +316,5 @@ if __name__ == '__main__':
         compare(sys.argv[2], sys.argv[3])
     elif command == 'explain':
         explain(sys.argv[2])
+    elif command == 'scenarios':
+        scenarios(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else 'llm')

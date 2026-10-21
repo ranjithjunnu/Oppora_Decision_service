@@ -32,7 +32,7 @@ export function LeadAIActivity({ run }: { run: ScoringRun }) {
   return <details className="batch-activity">
     <summary>AI activity <span>{run.traces.length + interpretation.length} recorded calls</span></summary>
     <p>{run.decision_model === 'jev'
-      ? 'The LLM interprets the people search; the backend retrieves local records and saves lists. Jev answers yes/no checks for each lead, and the backend selects leads and computes scores from those probabilities. A valid response is not an accuracy guarantee.'
+      ? 'The LLM interprets the people search; the backend retrieves local records and saves lists. Jev answers yes/no checks for each lead, and the backend selects leads and computes scores from those probabilities. Any lead Jev cannot judge is decided by the scoring LLM instead, and is labelled as a fallback. A valid response is not an accuracy guarantee.'
       : 'AI interprets natural-language people searches; the backend retrieves local records and saves lists. The scoring LLM selects matches and assigns scores. The backend checks the response format, IDs and score ranges. A valid response is not an accuracy guarantee.'}</p>
     {interpretation.map(trace => <TraceCard key={trace.id} trace={trace} />)}
     {run.traces.map(trace => <TraceCard key={trace.id} trace={trace} />)}
